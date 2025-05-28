@@ -105,14 +105,47 @@ html[data-theme="dark"] {
     font-size: 0.8rem;
 }
 
-/* Theme toggle button */
-.theme-button {
+/* Theme toggle and refresh buttons */
+.theme-button,
+.refresh-button {
     background: transparent;
     border: none;
     color: white;
     font-size: 1.2rem;
     cursor: pointer;
     margin-right: 1rem;
+}
+
+.refresh-button {
+    animation: spin-on-hover 0.3s linear;
+    animation-play-state: paused;
+    transition: transform 0.3s;
+}
+
+.refresh-button:hover {
+    animation-play-state: running;
+}
+
+.refresh-button.spinning {
+    animation: spin 0.5s linear;
+}
+
+@keyframes spin-on-hover {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .header-actions {
@@ -891,4 +924,57 @@ html[data-theme="dark"] .pin-btn.active {
     transform: translateY(-3px);
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
     background: linear-gradient(135deg, var(--primary), var(--accent));
+}
+
+/* Update notification */
+.update-notification {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card-bg);
+    padding: 0.8rem 1.2rem;
+    border-radius: var(--radius);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+    animation: slide-in 0.3s ease-out;
+    max-width: 90%;
+    border-left: 3px solid var(--primary);
+}
+
+.update-notification.fade-out {
+    animation: fade-out 0.5s ease-out forwards;
+}
+
+.update-content {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    color: var(--text-color);
+}
+
+.update-content i {
+    color: var(--primary);
+    font-size: 1.2rem;
+}
+
+@keyframes slide-in {
+    0% {
+        transform: translate(-50%, -100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes fade-out {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -20px);
+    }
 }

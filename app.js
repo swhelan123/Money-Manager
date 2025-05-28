@@ -1,5 +1,6 @@
 // ---------- Data layer ----------
 const STORAGE_KEY = "money-manager-data";
+const APP_VERSION = "0.3.3";  // Current app version
 let currentMap = null;
 let modalInitialized = false;
 let currentTxIndex = -1;
@@ -73,11 +74,14 @@ function loadData() {
   }
 
   // Apply theme from settings
-  applyTheme(data.settings.theme);
-}
-function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
+    applyTheme(data.settings.theme);
+  
+    // Store current version for update checking
+    localStorage.setItem("app-version", APP_VERSION);
+  }
+  function saveData() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
 
 // ---------- UI rendering ----------
 function formatAmt(a) {
@@ -794,6 +798,51 @@ function updateBalanceOverTimeChart() {
       }
     }
   });
+}
+
+// Check for updates
+function checkForUpdates() {
+  const storedVersion = localStorage.getItem("app-version") || "0.0.0";
+  
+  if (storedVersion !== APP_VERSION) {
+    // Show update notification
+    const notification = document.createElement('div');
+    notification.className = 'update-notification';
+    notification.innerHTML = `
+      <div class="update-content">
+        <i class="fas fa-info-circle"></i>
+        <span>New version available (${APP_VERSION}). Refreshing...</span>
+      </div>
+    `;
+    document.body.appendChild(notification);
+    
+    // Update stored version and reload after a short delay
+    localStorage.setItem("app-version", APP_VERSION);
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
+  } else {
+    // Show "up to date" notification
+    const notification = document.createElement('div');
+    notification.className = 'update-notification';
+    notification.innerHTML = `
+      <div class="update-content">
+        <i class="fas fa-check-circle"></i>
+        <span>App is up to date (v${APP_VERSION})</span>
+      </div>
+    `;
+    document.body.appendChild(notification);
+    
+    // Remove notification after a few seconds
+    setTimeout(() => {
+      notification.classList.add('fade-out');
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 500);
+    }, 2000);
+  }
 }
 
 // ---------- Init ----------
@@ -1532,9 +1581,16 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Theme toggle
-  document.getElementById("theme-toggle").addEventListener("click", function() {
-    toggleTheme();
-  });
+    document.getElementById("theme-toggle").addEventListener("click", function() {
+      toggleTheme();
+    });
+  
+    // Check for updates
+    document.getElementById("refresh-btn").addEventListener("click", function() {
+      checkForUpdates();
+      this.classList.add('spinning');
+      setTimeout(() => this.classList.remove('spinning'), 500);
+    });
 
   // Prevent pinch zoom
   document.addEventListener('touchmove', function (event) {

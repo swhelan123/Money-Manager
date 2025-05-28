@@ -24,6 +24,7 @@
         <header>
             <h1><i class="fas fa-wallet"></i> Money Manager</h1>
             <div class="header-actions">
+                <button id="refresh-btn" class="refresh-button"><i class="fas fa-redo-alt"></i></button>
                 <button id="theme-toggle" class="theme-button"><i class="fas fa-moon"></i></button>
                 <button id="reset-btn" class="reset-button"><i class="fas fa-sync"></i> Reset All Data</button>
             </div>
@@ -354,6 +355,11 @@
             // Ensure the transaction modal is hidden on page load
             document.addEventListener("DOMContentLoaded", function () {
                 document.getElementById("transaction-modal").classList.add("hidden");
+                
+                // Add refresh button functionality
+                document.getElementById("refresh-btn").addEventListener("click", function() {
+                    window.location.reload();
+                });
             });
         </script>
         <script src="app.js"></script>
