@@ -3,8 +3,9 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover" />
-        <!-- Enable full-screen on iOS when added to homescreen -->
+        <!-- Enable full-screen on mobile devices when added to homescreen -->
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-touch-fullscreen" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#4a90e2" />
@@ -78,6 +79,7 @@
                     <strong>Credit Union</strong>
                     <p class="balance">€0.00</p>
                 </div>
+                <button class="edit-account-btn" data-id="cu"><i class="fas fa-edit"></i></button>
             </div>
             <div class="card" data-account="revolut">
                 <i class="fas fa-credit-card fa-2x"></i>
@@ -85,12 +87,20 @@
                     <strong>Revolut</strong>
                     <p class="balance">€0.00</p>
                 </div>
+                <button class="edit-account-btn" data-id="revolut"><i class="fas fa-edit"></i></button>
             </div>
             <div class="card" data-account="cash">
                 <i class="fas fa-money-bill-wave fa-2x"></i>
                 <div>
                     <strong>Cash</strong>
                     <p class="balance">€0.00</p>
+                </div>
+                <button class="edit-account-btn" data-id="cash"><i class="fas fa-edit"></i></button>
+            </div>
+            <div class="card add-account-card" id="add-new-account-btn">
+                <i class="fas fa-plus fa-2x"></i>
+                <div>
+                    <strong>Add Account</strong>
                 </div>
             </div>
         </section>
@@ -297,6 +307,67 @@
                     <button id="pin-tx-btn" class="pin-btn"><i class="fas fa-thumbtack"></i> Pin</button>
                     <button id="edit-tx-btn" class="edit-btn"><i class="fas fa-edit"></i> Edit</button>
                     <button id="delete-tx-btn" class="delete-btn"><i class="fas fa-trash"></i> Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Accounts Management Modal -->
+        <div id="accounts-modal" class="modal hidden">
+            <div class="modal-content">
+                <button id="accounts-close-btn" class="close-btn" aria-label="Close">&times;</button>
+                <h3><i class="fas fa-university"></i> Manage Account</h3>
+                
+                <div class="account-edit-container">
+                    <label>
+                        Account Name
+                        <input type="text" id="new-account-name" required placeholder="e.g. Bank Account" />
+                    </label>
+                    
+                    <div class="account-icon-selector">
+                        <h4>Choose Icon</h4>
+                        <div class="icon-grid">
+                            <div class="icon-option" data-icon="university"><i class="fas fa-university"></i></div>
+                            <div class="icon-option" data-icon="credit-card"><i class="fas fa-credit-card"></i></div>
+                            <div class="icon-option" data-icon="money-bill-wave"><i class="fas fa-money-bill-wave"></i></div>
+                            <div class="icon-option" data-icon="piggy-bank"><i class="fas fa-piggy-bank"></i></div>
+                            <div class="icon-option" data-icon="wallet"><i class="fas fa-wallet"></i></div>
+                            <div class="icon-option" data-icon="landmark"><i class="fas fa-landmark"></i></div>
+                            <div class="icon-option" data-icon="coins"><i class="fas fa-coins"></i></div>
+                            <div class="icon-option" data-icon="dollar-sign"><i class="fas fa-dollar-sign"></i></div>
+                            <div class="icon-option" data-icon="euro-sign"><i class="fas fa-euro-sign"></i></div>
+                            <div class="icon-option" data-icon="pound-sign"><i class="fas fa-pound-sign"></i></div>
+                            <div class="icon-option" data-icon="building"><i class="fas fa-building"></i></div>
+                            <div class="icon-option" data-icon="chart-line"><i class="fas fa-chart-line"></i></div>
+                        </div>
+                    </div>
+                    
+                    <div class="account-color-selector">
+                        <h4>Choose Color</h4>
+                        <div class="color-grid">
+                            <div class="color-option" data-color="#4a90e2"></div>
+                            <div class="color-option" data-color="#50c878"></div>
+                            <div class="color-option" data-color="#f44336"></div>
+                            <div class="color-option" data-color="#ff9800"></div>
+                            <div class="color-option" data-color="#9c27b0"></div>
+                            <div class="color-option" data-color="#795548"></div>
+                            <div class="color-option" data-color="#607d8b"></div>
+                            <div class="color-option" data-color="#ffeb3b"></div>
+                            <div class="color-option" data-color="#3f51b5"></div>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" id="new-account-id" />
+                    <input type="hidden" id="new-account-icon" />
+                    <input type="hidden" id="new-account-color" value="#4a90e2" />
+                    
+                    <div class="modal-actions">
+                        <button type="button" id="cancel-account-btn" class="cancel-btn"><i class="fas fa-times"></i> Cancel</button>
+                        <button type="button" id="add-account-btn" class="edit-btn"><i class="fas fa-save"></i> Save Account</button>
+                    </div>
+                    
+                    <div id="delete-account-container" class="hidden">
+                        <button type="button" id="delete-account-btn" class="danger-btn"><i class="fas fa-trash"></i> Delete Account</button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -1,12 +1,18 @@
 // ---------- Data layer ----------
 const STORAGE_KEY = "money-manager-data";
-const APP_VERSION = "0.3.3";  // Current app version
+const APP_VERSION = "0.4.1";
 let currentMap = null;
 let modalInitialized = false;
 let currentTxIndex = -1;
 let currentView = "transactions"; // Can be: transactions, charts, budgets
+let currentEditingAccountId = null;
 let data = {
   balances: { cu: 0, revolut: 0, cash: 0 },
+  accounts: [
+    { id: "cu", name: "Credit Union", icon: "university", color: "#4a90e2" },
+    { id: "revolut", name: "Revolut", icon: "credit-card", color: "#50c878" },
+    { id: "cash", name: "Cash", icon: "money-bill-wave", color: "#ff9800" }
+  ],
   transactions: [],
   categories: [
     "Food & Dining",
@@ -18,21 +24,22 @@ let data = {
     "Travel",
     "Education",
     "Personal Care",
-    "Gifts & Donations",
-    "Income",
-    "Other"
+    "Gifts",
+    "Other",
   ],
   budgets: {},
   settings: {
     theme: "light",
     pinnedTransactions: [],
-    recurringTransactions: []
-  }
+    recurringTransactions: [],
+    version: "0.3.5"
+  },
 };
 
 function loadData() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
     const savedData = JSON.parse(saved);
     // Ensure backward compatibility with older data structure
     data = {
@@ -50,60 +57,699 @@ function loadData() {
         "Personal Care",
         "Gifts & Donations",
         "Income",
-        "Other"
+        "Other",
       ],
       budgets: savedData.budgets || {},
       settings: savedData.settings || {
         theme: "light",
         pinnedTransactions: [],
-        recurringTransactions: []
-      }
+        recurringTransactions: [],
+        version: "0.3.5"
+      },
     };
+    
+    // Add accounts array if upgrading from previous version
+    if (!savedData.accounts) {
+      // Create default accounts based on the existing balances
+      data.accounts = [
+        { id: "cu", name: "Credit Union", icon: "university", color: "#4a90e2" },
+        { id: "revolut", name: "Revolut", icon: "credit-card", color: "#50c878" },
+        { id: "cash", name: "Cash", icon: "money-bill-wave", color: "#ff9800" }
+      ];
+      
+      // Store the app version in settings
+      data.settings.version = "0.3.5";
+    } else {
+      data.accounts = savedData.accounts;
+    }
 
     // Migrate existing transactions to include new fields if they don't exist
-    data.transactions = data.transactions.map(tx => {
+    data.transactions = data.transactions.map((tx) => {
       return {
         ...tx,
         category: tx.category || (tx.type === "income" ? "Income" : "Other"),
         isRecurring: tx.isRecurring || false,
         isPinned: tx.isPinned || false,
         notes: tx.notes || "",
-        attachments: tx.attachments || []
+        attachments: tx.attachments || [],
       };
     });
+    
+    // Ensure all accounts have a color property
+    // Add color property to accounts
+    data.accounts = data.accounts.map(account => {
+      if (!account.color) {
+        // Assign default colors based on account type
+        if (account.id === "cu") return { ...account, color: "#4a90e2" };
+        if (account.id === "revolut") return { ...account, color: "#50c878" };
+        if (account.id === "cash") return { ...account, color: "#ff9800" };
+        // Random color for other accounts
+        const defaultColors = ["#4a90e2", "#50c878", "#f44336", "#ff9800", "#9c27b0", "#795548"];
+        const randomColor = defaultColors[Math.floor(Math.random() * defaultColors.length)];
+        return { ...account, color: randomColor };
+      }
+      return account;
+    });
+  
+    // Update account filter
+    updateFilters();
+    
+    // Check for version upgrade
+    if (data.settings.version !== APP_VERSION) {
+      // Show upgrade notification
+      showUpdateNotification(`Upgraded from v${data.settings.version} to v${APP_VERSION}`);
+      data.settings.version = APP_VERSION;
+      saveData();
+    }
+  }
+  } catch (error) {
+    console.error("Error loading data:", error);
+    // Reset to default data if loading fails
+    data = {
+      balances: { cu: 0, revolut: 0, cash: 0 },
+      transactions: [],
+      accounts: [
+        { id: "cu", name: "Credit Union", icon: "university", color: "#4a90e2" },
+        { id: "revolut", name: "Revolut", icon: "credit-card", color: "#50c878" },
+        { id: "cash", name: "Cash", icon: "money-bill-wave", color: "#ff9800" }
+      ],
+      categories: [
+        "Food & Dining",
+        "Shopping",
+        "Transportation",
+        "Bills & Utilities",
+        "Entertainment",
+        "Health & Fitness",
+        "Travel",
+        "Education",
+        "Personal Care",
+        "Gifts",
+        "Other",
+      ],
+      budgets: {},
+      settings: {
+        theme: "light",
+        pinnedTransactions: [],
+        recurringTransactions: [],
+        version: APP_VERSION
+      },
+    };
+    saveData();
   }
 
   // Apply theme from settings
-    applyTheme(data.settings.theme);
-  
-    // Store current version for update checking
-    localStorage.setItem("app-version", APP_VERSION);
-  }
-  function saveData() {
+  applyTheme(data.settings.theme);
+
+  // Store current version for update checking
+  localStorage.setItem("app-version", APP_VERSION);
+}
+function saveData() {
+  try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.error("Error saving data:", error);
+    showUpdateNotification("Error saving data. Local storage may be full.");
   }
+}
 
 // ---------- UI rendering ----------
 function formatAmt(a) {
   return "€" + a.toFixed(2);
 }
 function renderBalances() {
+  // First render the account cards
+  renderAccountCards();
+  
+  // Then update the balance values
   document.querySelectorAll(".card[data-account]").forEach((card) => {
     const acc = card.dataset.account;
     let balance = data.balances[acc] !== undefined ? data.balances[acc] : 0;
     card.querySelector(".balance").textContent = formatAmt(balance);
   });
   renderTotalBalance();
+  
+  // Update filters to include new accounts
+  updateFilters();
+}
+
+function renderAccountCards() {
+  const balancesSection = document.querySelector(".balances");
+  balancesSection.innerHTML = "";
+  
+  // Safety check to ensure accounts array exists
+  if (!data.accounts || !Array.isArray(data.accounts)) {
+    // Initialize with default accounts if missing
+    data.accounts = [
+      { id: "cu", name: "Credit Union", icon: "university", color: "#4a90e2" },
+      { id: "revolut", name: "Revolut", icon: "credit-card", color: "#50c878" },
+      { id: "cash", name: "Cash", icon: "money-bill-wave", color: "#ff9800" }
+    ];
+  }
+  
+  data.accounts.forEach(account => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.setAttribute("data-account", account.id);
+    
+    // Apply custom color if available
+    if (account.color) {
+      card.style.borderLeft = `4px solid ${account.color}`;
+    }
+    
+    card.innerHTML = `
+      <i class="fas fa-${account.icon} fa-2x" ${account.color ? `style="color:${account.color}"` : ''}></i>
+      <div>
+        <strong>${account.name}</strong>
+        <p class="balance">€0.00</p>
+      </div>
+      <button class="edit-account-btn" data-id="${account.id}"><i class="fas fa-edit"></i></button>
+    `;
+    
+    // Add click event listener for card selection
+    card.addEventListener("click", function(e) {
+      // Don't trigger if clicking the edit button
+      if (e.target.closest('.edit-account-btn')) return;
+      
+      document.querySelectorAll(".card[data-account]").forEach(c => c.classList.remove("active"));
+      this.classList.add("active");
+      filters.account = this.dataset.account;
+      renderTransactions();
+    });
+    
+    // Add edit button click handler
+    const editBtn = card.querySelector('.edit-account-btn');
+    editBtn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      const accountId = this.getAttribute("data-id");
+      openEditAccountModal(accountId);
+    });
+    
+    balancesSection.appendChild(card);
+  });
+  
+  // Add the "Add Account" card
+  const addCard = document.createElement("div");
+  addCard.className = "card add-account-card";
+  addCard.id = "add-new-account-btn";
+  addCard.innerHTML = `
+    <i class="fas fa-plus fa-2x"></i>
+    <div>
+      <strong>Add Account</strong>
+    </div>
+  `;
+  
+  addCard.addEventListener("click", function() {
+    openNewAccountModal();
+  });
+  
+  balancesSection.appendChild(addCard);
+}
+
+// No longer needed - removed as part of the UI redesign
+
+// Open modal to add a new account
+function openNewAccountModal() {
+  // Reset the form
+  document.getElementById("new-account-name").value = "";
+  document.getElementById("new-account-id").value = "";
+  document.getElementById("new-account-icon").value = "university";
+  document.getElementById("new-account-color").value = "#4a90e2";
+  
+  // Update the modal title and button
+  document.querySelector("#accounts-modal h3").innerHTML = '<i class="fas fa-plus"></i> Add New Account';
+  
+  // Set the modal to add mode
+  currentEditingAccountId = null;
+  
+  // Update button text
+  document.getElementById("add-account-btn").innerHTML = '<i class="fas fa-save"></i> Add Account';
+  
+  // Hide the delete button
+  document.getElementById("delete-account-container").classList.add("hidden");
+  
+  // Reset icon and color selections
+  document.querySelectorAll('.icon-option').forEach(icon => icon.classList.remove('selected'));
+  document.querySelectorAll('.icon-option')[0].classList.add('selected'); // Select first icon
+  
+  document.querySelectorAll('.color-option').forEach(color => color.classList.remove('selected'));
+  document.querySelectorAll('.color-option')[0].classList.add('selected'); // Select first color
+  
+  // Reset the name input border
+  const nameInput = document.getElementById("new-account-name");
+  nameInput.style.borderLeft = "4px solid #4a90e2";
+  
+  // Show the modal
+  document.getElementById("accounts-modal").classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  
+  // Focus on the name input after a brief delay to ensure modal is visible
+  setTimeout(() => {
+    document.getElementById("new-account-name").focus();
+  }, 50);
+}
+
+// Add or update an account
+function saveAccount() {
+  const nameInput = document.getElementById("new-account-name");
+  const idInput = document.getElementById("new-account-id");
+  const iconInput = document.getElementById("new-account-icon");
+  const colorInput = document.getElementById("new-account-color");
+  
+  const name = nameInput.value.trim();
+  let id = idInput.value.trim().toLowerCase();
+  const icon = iconInput.value;
+  const color = colorInput.value;
+  
+  // Validation
+  if (!name) {
+    nameInput.classList.add("input-error");
+    nameInput.focus();
+    showUpdateNotification("Please enter an account name");
+    
+    // Remove error class after a delay
+    setTimeout(() => {
+      nameInput.classList.remove("input-error");
+    }, 2000);
+    return;
+  }
+  
+  // If adding a new account
+  if (!currentEditingAccountId) {
+    // Generate ID from name if not provided
+    if (!id) {
+      id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      // Ensure uniqueness
+      let uniqueId = id;
+      let counter = 1;
+      while (data.accounts.some(account => account.id === uniqueId)) {
+        uniqueId = `${id}-${counter}`;
+        counter++;
+      }
+      id = uniqueId;
+    }
+    
+    // Check if ID already exists
+    if (data.accounts.some(account => account.id === id)) {
+      idInput.classList.add("input-error");
+      idInput.focus();
+      showUpdateNotification(`Account ID "${id}" already exists. A unique ID will be generated for you.`);
+      
+      // Auto-generate a unique ID
+      let uniqueId = id;
+      let counter = 1;
+      while (data.accounts.some(account => account.id === uniqueId)) {
+        uniqueId = `${id}-${counter}`;
+        counter++;
+      }
+      idInput.value = uniqueId;
+      id = uniqueId;
+      
+      // Remove error class after a delay
+      setTimeout(() => {
+        idInput.classList.remove("input-error");
+      }, 2000);
+    }
+    
+    // Add the new account
+    data.accounts.push({
+      id: id,
+      name: name,
+      icon: icon,
+      color: color
+    });
+    
+    // Initialize balance for this account
+    data.balances[id] = 0;
+    
+    // Show notification
+    showUpdateNotification(`Account "${name}" added successfully`);
+  } 
+  // If editing an existing account
+  else {
+    const accountIndex = data.accounts.findIndex(a => a.id === currentEditingAccountId);
+    if (accountIndex !== -1) {
+      data.accounts[accountIndex].name = name;
+      data.accounts[accountIndex].icon = icon;
+      data.accounts[accountIndex].color = color;
+      
+      // Show notification
+      showUpdateNotification(`Account "${name}" updated successfully`);
+    }
+  }
+  
+  // Save data and refresh UI
+  saveData();
+  renderAccountCards();
+  renderBalances();
+  renderTransactions();
+  
+  // Update transaction form account options
+  updateAccountOptions();
+  
+  // Close the modal
+  document.getElementById("accounts-modal").classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+
+// Open modal to edit an existing account
+function openEditAccountModal(accountId) {
+  // Safety check to ensure accounts array exists
+  if (!data.accounts || !Array.isArray(data.accounts)) {
+    data.accounts = [
+      { id: "cu", name: "Credit Union", icon: "university", color: "#4a90e2" },
+      { id: "revolut", name: "Revolut", icon: "credit-card", color: "#50c878" },
+      { id: "cash", name: "Cash", icon: "money-bill-wave", color: "#ff9800" }
+    ];
+  }
+  
+  const account = data.accounts.find(a => a.id === accountId);
+  if (!account) return;
+  
+  currentEditingAccountId = accountId;
+  
+  // Update the modal title
+  document.querySelector("#accounts-modal h3").innerHTML = '<i class="fas fa-edit"></i> Edit Account';
+  
+  // Fill the form with account data
+  document.getElementById("new-account-name").value = account.name;
+  document.getElementById("new-account-id").value = account.id;
+  document.getElementById("new-account-icon").value = account.icon || "university";
+  const accountColor = account.color || "#4a90e2";
+  document.getElementById("new-account-color").value = accountColor;
+  
+  // Set the name input border color
+  const nameInput = document.getElementById("new-account-name");
+  nameInput.style.borderLeft = `4px solid ${accountColor}`;
+  
+  // Update button text
+  document.getElementById("add-account-btn").innerHTML = '<i class="fas fa-save"></i> Update Account';
+  
+  // Show the delete button
+  document.getElementById("delete-account-container").classList.remove("hidden");
+  
+  // Reset and set the selected icon
+  document.querySelectorAll('.icon-option').forEach(icon => {
+    icon.classList.remove('selected');
+    if (icon.getAttribute('data-icon') === account.icon) {
+      icon.classList.add('selected');
+    }
+  });
+  
+  // Reset and set the selected color
+  document.querySelectorAll('.color-option').forEach(color => {
+    color.classList.remove('selected');
+    if (color.getAttribute('data-color') === account.color) {
+      color.classList.add('selected');
+    }
+  });
+  
+  // If no color was selected (for older accounts), select the first one
+  if (!document.querySelector('.color-option.selected')) {
+    document.querySelectorAll('.color-option')[0].classList.add('selected');
+  }
+  
+  // Show the modal
+  document.getElementById("accounts-modal").classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  
+  // Focus on the name input after a brief delay to ensure modal is visible
+  setTimeout(() => {
+    document.getElementById("new-account-name").focus();
+  }, 50);
+}
+
+// Delete an account
+function deleteAccount() {
+  if (!currentEditingAccountId) return;
+  
+  // Safety check to ensure accounts array exists
+  if (!data.accounts || !Array.isArray(data.accounts)) {
+    data.accounts = [
+      { id: "cu", name: "Credit Union", icon: "university", color: "#4a90e2" },
+      { id: "revolut", name: "Revolut", icon: "credit-card", color: "#50c878" },
+      { id: "cash", name: "Cash", icon: "money-bill-wave", color: "#ff9800" }
+    ];
+  }
+  
+  // Can't delete if it's the only account
+  if (data.accounts.length <= 1) {
+    alert("You must have at least one account. Create a new account before deleting this one.");
+    return;
+  }
+  
+  const account = data.accounts.find(a => a.id === currentEditingAccountId);
+  if (!account) return;
+  
+  // Confirm deletion
+  if (!confirm(`Are you sure you want to delete the "${account.name}" account? All transactions for this account will remain but will be labeled as "Unknown Account".`)) {
+    return;
+  }
+  
+  // Find the account to delete
+  const accountIndex = data.accounts.findIndex(a => a.id === currentEditingAccountId);
+  if (accountIndex === -1) return;
+  
+  // Handle existing transactions
+  data.transactions.forEach(tx => {
+    if (tx.account === currentEditingAccountId) {
+      tx.account = "unknown";
+    }
+  });
+  
+  // Remove the account
+  const accountName = data.accounts[accountIndex].name;
+  data.accounts.splice(accountIndex, 1);
+  
+  // Remove the balance
+  const oldBalance = data.balances[currentEditingAccountId] || 0;
+  delete data.balances[currentEditingAccountId];
+  
+  // Save data and refresh UI
+  saveData();
+  renderAccountCards();
+  renderBalances();
+  renderTransactions();
+  
+  // Update transaction form account options
+  updateAccountOptions();
+  
+  // Close the modal
+  document.getElementById("accounts-modal").classList.add("hidden");
+  document.body.classList.remove("modal-open");
+  
+  // Reset the current editing ID
+  currentEditingAccountId = null;
+  
+  // Show notification
+  showUpdateNotification(`Account "${accountName}" deleted. Balance of ${formatAmt(oldBalance)} was removed.`);
+}
+
+// Cancel account editing/adding and close the modal
+function cancelAccountModal() {
+  currentEditingAccountId = null;
+  // Hide the modal
+  document.getElementById("accounts-modal").classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+
+// Initialize account management UI
+function initAccountManagement() {
+  // Setup icon option click handlers
+  document.querySelectorAll('.icon-option').forEach(option => {
+    option.addEventListener('click', function() {
+      // Remove selected class from all options
+      document.querySelectorAll('.icon-option').forEach(opt => opt.classList.remove('selected'));
+      
+      // Add selected class to this option
+      this.classList.add('selected');
+      
+      // Update the hidden input
+      document.getElementById('new-account-icon').value = this.getAttribute('data-icon');
+    });
+  });
+  
+  // Setup color option click handlers
+  document.querySelectorAll('.color-option').forEach(option => {
+    // Set the background color based on the data-color attribute
+    option.style.backgroundColor = option.getAttribute('data-color');
+    
+    option.addEventListener('click', function() {
+      const color = this.getAttribute('data-color');
+      
+      // Remove selected class from all options
+      document.querySelectorAll('.color-option').forEach(opt => opt.classList.remove('selected'));
+      
+      // Add selected class to this option
+      this.classList.add('selected');
+      
+      // Update the hidden input
+      document.getElementById('new-account-color').value = color;
+      
+      // Update the name input border to reflect selected color
+      const nameInput = document.getElementById('new-account-name');
+      nameInput.style.borderLeft = `4px solid ${color}`;
+    });
+  });
+  
+  // Select first options by default
+  if (document.querySelectorAll('.icon-option').length > 0) {
+    document.querySelectorAll('.icon-option')[0].classList.add('selected');
+    document.getElementById('new-account-icon').value = document.querySelectorAll('.icon-option')[0].getAttribute('data-icon');
+  }
+  
+  if (document.querySelectorAll('.color-option').length > 0) {
+    document.querySelectorAll('.color-option')[0].classList.add('selected');
+    const defaultColor = document.querySelectorAll('.color-option')[0].getAttribute('data-color');
+    document.getElementById('new-account-color').value = defaultColor;
+    
+    // Set initial color on name input
+    const nameInput = document.getElementById('new-account-name');
+    nameInput.style.borderLeft = `4px solid ${defaultColor}`;
+  }
+  
+  // Add input event listener for the account name field
+  const nameInput = document.getElementById('new-account-name');
+  if (nameInput) {
+    nameInput.addEventListener('input', function() {
+      if (this.classList.contains('input-error')) {
+        this.classList.remove('input-error');
+      }
+    });
+  }
+}
+
+// Show a temporary notification message
+function showUpdateNotification(message) {
+  const notification = document.createElement("div");
+  notification.className = "update-notification";
+  notification.innerHTML = `
+    <div class="update-content">
+      <i class="fas fa-info-circle"></i>
+      <span>${message}</span>
+    </div>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Fade out after a few seconds
+  setTimeout(() => {
+    notification.classList.add("fade-out");
+    setTimeout(() => {
+      notification.remove();
+    }, 500);
+  }, 3000);
 }
 
 function renderTotalBalance() {
-  const total = Object.values(data.balances).reduce((sum, balance) => sum + balance, 0);
+  // Ensure balances object exists
+  if (!data.balances) {
+    data.balances = { cu: 0, revolut: 0, cash: 0 };
+  }
+  
+  const total = Object.values(data.balances).reduce(
+    (sum, balance) => sum + balance,
+    0
+  );
   document.getElementById("total-balance").textContent = formatAmt(total);
+}
+
+// Get account color by account ID
+function getAccountColor(accountId) {
+  // Safety check to ensure accounts array exists
+  if (!data.accounts || !Array.isArray(data.accounts)) {
+    return '#607d8b'; // Default color if accounts array is missing
+  }
+  const account = data.accounts.find(a => a.id === accountId);
+  return account && account.color ? account.color : '#607d8b'; // Default color for unknown accounts
+}
+
+// Update filter options based on current data
+function updateFilters() {
+  const accountFilter = document.getElementById("account-filter");
+  if (!accountFilter) return;
+  
+  // Update account filter options
+  updateAccountOptions();
+  
+  // Select the appropriate option based on current filter state
+  if (filters.account && filters.account !== "all") {
+    if (accountFilter.querySelector(`option[value="${filters.account}"]`)) {
+      accountFilter.value = filters.account;
+    } else {
+      filters.account = "all";
+      accountFilter.value = "all";
+    }
+  }
+  
+  // Make sure the rendered transactions reflect the filter changes
+  renderTransactions();
+}
+
+// Update account options in all forms and filters
+function updateAccountOptions() {
+  // Get references to select elements
+  const txAccount = document.getElementById("tx-account");
+  const editTxAccount = document.getElementById("edit-tx-account");
+  const accountFilter = document.getElementById("account-filter");
+  
+  // Safety check - exit if elements don't exist
+  if (!txAccount || !editTxAccount) return;
+  
+  // Safety check to ensure accounts array exists
+  if (!data.accounts || !Array.isArray(data.accounts)) {
+    // Initialize with default accounts if missing
+    data.accounts = [
+      { id: "cu", name: "Credit Union", icon: "university", color: "#4a90e2" },
+      { id: "revolut", name: "Revolut", icon: "credit-card", color: "#50c878" },
+      { id: "cash", name: "Cash", icon: "money-bill-wave", color: "#ff9800" }
+    ];
+  }
+  
+  // Clear existing options
+  txAccount.innerHTML = '';
+  editTxAccount.innerHTML = '';
+  
+  // For the filter, we want to keep the 'All Accounts' option
+  if (accountFilter) {
+    // Save the 'All Accounts' option
+    const allOption = accountFilter.querySelector('option[value="all"]');
+    accountFilter.innerHTML = '';
+    if (allOption) {
+      accountFilter.appendChild(allOption);
+    } else {
+      const option = document.createElement("option");
+      option.value = "all";
+      option.textContent = "All Accounts";
+      accountFilter.appendChild(option);
+    }
+  }
+  
+  // Add options for each account
+  data.accounts.forEach(account => {
+    const option1 = document.createElement("option");
+    option1.value = account.id;
+    option1.textContent = account.name;
+    
+    const option2 = document.createElement("option");
+    option2.value = account.id;
+    option2.textContent = account.name;
+    
+    txAccount.appendChild(option1);
+    editTxAccount.appendChild(option2);
+    
+    // Add to filter if it exists
+    if (accountFilter) {
+      const option3 = document.createElement("option");
+      option3.value = account.id;
+      option3.textContent = account.name;
+      accountFilter.appendChild(option3);
+    }
+  });
 }
 // Global filters and sort state
 let filters = {
   account: "all",
-  type: "all"
+  type: "all",
 };
 let sortOrder = "date-desc";
 
@@ -112,8 +758,9 @@ function renderTransactions() {
   ul.innerHTML = "";
 
   // Filter transactions
-  let filteredTransactions = data.transactions.filter(tx => {
-    if (filters.account !== "all" && tx.account !== filters.account) return false;
+  let filteredTransactions = data.transactions.filter((tx) => {
+    if (filters.account !== "all" && tx.account !== filters.account)
+      return false;
     if (filters.type !== "all" && tx.type !== filters.type) return false;
     return true;
   });
@@ -135,14 +782,17 @@ function renderTransactions() {
   }
 
   // Check for pinned transactions first
-  const pinnedTransactions = filteredTransactions.filter(tx => tx.isPinned);
-  const regularTransactions = filteredTransactions.filter(tx => !tx.isPinned);
+  const pinnedTransactions = filteredTransactions.filter((tx) => tx.isPinned);
+  const regularTransactions = filteredTransactions.filter((tx) => !tx.isPinned);
 
   // Process pinned transactions first, then regular ones
   [...pinnedTransactions, ...regularTransactions].forEach((tx) => {
     const li = document.createElement("li");
     li.setAttribute("data-account", tx.account);
-    li.setAttribute("data-id", tx.id || "tx-" + Math.random().toString(36).substr(2, 9));
+    li.setAttribute(
+      "data-id",
+      tx.id || "tx-" + Math.random().toString(36).substr(2, 9),
+    );
 
     // Add class for pinned transactions
     if (tx.isPinned) {
@@ -150,27 +800,29 @@ function renderTransactions() {
     }
 
     // Add recurring indicator if applicable
-    const recurringIcon = tx.isRecurring ?
-      `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>` : '';
+    const recurringIcon = tx.isRecurring
+      ? `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>`
+      : "";
 
     li.innerHTML = `
       <span>
         <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}"
            style="color: var(--${tx.type}-color);"></i>
-        <span class="account-dot" style="background-color: var(--${tx.account}-color);"></span>
+        <span class="account-dot" style="background-color: ${getAccountColor(tx.account)};"></span>
         ${tx.description || "(no desc)"}
         ${recurringIcon}
-        ${tx.category ? `<span class="category-tag">${tx.category}</span>` : ''}
+        ${tx.category ? `<span class="category-tag">${tx.category}</span>` : ""}
       </span>
       <span>${formatAmt(tx.amount)}</span>
     `;
     li.addEventListener("click", function () {
-      const index = data.transactions.findIndex(t =>
-        t.date === tx.date &&
-        t.amount === tx.amount &&
-        t.description === tx.description &&
-        t.type === tx.type &&
-        t.account === tx.account
+      const index = data.transactions.findIndex(
+        (t) =>
+          t.date === tx.date &&
+          t.amount === tx.amount &&
+          t.description === tx.description &&
+          t.type === tx.type &&
+          t.account === tx.account,
       );
       currentTxIndex = index;
 
@@ -178,12 +830,29 @@ function renderTransactions() {
       const info = document.getElementById("tx-info");
       const mapPreview = document.getElementById("map-preview");
 
-      let detailsHtml = "<p><strong>Description:</strong> " + (tx.description || "(no desc)") + "</p>" +
-                        "<p><strong>Account:</strong> " + (tx.account === "cu" ? "Credit Union" : tx.account === "revolut" ? "Revolut" : "Cash") + "</p>" +
-                        "<p><strong>Type:</strong> " + tx.type + "</p>" +
-                        "<p><strong>Amount:</strong> " + formatAmt(tx.amount) + "</p>" +
-                        "<p><strong>Date:</strong> " + tx.date + "</p>" +
-                        "<p><strong>Category:</strong> " + (tx.category || "Uncategorized") + "</p>";
+      let detailsHtml =
+        "<p><strong>Description:</strong> " +
+        (tx.description || "(no desc)") +
+        "</p>" +
+        "<p><strong>Account:</strong> " +
+        (tx.account === "cu"
+          ? "Credit Union"
+          : tx.account === "revolut"
+            ? "Revolut"
+            : "Cash") +
+        "</p>" +
+        "<p><strong>Type:</strong> " +
+        tx.type +
+        "</p>" +
+        "<p><strong>Amount:</strong> " +
+        formatAmt(tx.amount) +
+        "</p>" +
+        "<p><strong>Date:</strong> " +
+        tx.date +
+        "</p>" +
+        "<p><strong>Category:</strong> " +
+        (tx.category || "Uncategorized") +
+        "</p>";
 
       // Add recurring info if applicable
       if (tx.isRecurring) {
@@ -197,8 +866,9 @@ function renderTransactions() {
 
       // Add attachments if available
       if (tx.attachments && tx.attachments.length > 0) {
-        detailsHtml += "<div class='attachment-section'><strong>Attachments:</strong><div class='attachment-list'>";
-        tx.attachments.forEach(attachment => {
+        detailsHtml +=
+          "<div class='attachment-section'><strong>Attachments:</strong><div class='attachment-list'>";
+        tx.attachments.forEach((attachment) => {
           detailsHtml += `<div class='attachment-item'><img src='${attachment.data}' alt='Receipt'></div>`;
         });
         detailsHtml += "</div></div>";
@@ -208,8 +878,8 @@ function renderTransactions() {
       // Clear previous map
       mapPreview.innerHTML = "";
       if (currentMap) {
-          currentMap.remove();
-          currentMap = null;
+        currentMap.remove();
+        currentMap = null;
       }
 
       // Store current scroll position before opening modal
@@ -223,19 +893,26 @@ function renderTransactions() {
       setTimeout(() => {
         if (tx.location) {
           try {
-            currentMap = L.map("map-preview").setView([tx.location.latitude, tx.location.longitude], 13);
+            currentMap = L.map("map-preview").setView(
+              [tx.location.latitude, tx.location.longitude],
+              13,
+            );
             L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
               attribution: "&copy; OpenStreetMap contributors",
             }).addTo(currentMap);
-            L.marker([tx.location.latitude, tx.location.longitude]).addTo(currentMap);
+            L.marker([tx.location.latitude, tx.location.longitude]).addTo(
+              currentMap,
+            );
             // Force map to recalculate size
             currentMap.invalidateSize();
           } catch (e) {
             console.error("Error initializing map:", e);
-            mapPreview.innerHTML = "<div class='no-location'>Error loading map</div>";
+            mapPreview.innerHTML =
+              "<div class='no-location'>Error loading map</div>";
           }
         } else {
-          mapPreview.innerHTML = "<div class='no-location'>No location data available</div>";
+          mapPreview.innerHTML =
+            "<div class='no-location'>No location data available</div>";
         }
       }, 100);
     });
@@ -244,14 +921,17 @@ function renderTransactions() {
 
   // Display message if no transactions match filters
   if (filteredTransactions.length === 0) {
-    ul.innerHTML = "<li class='no-transactions'>No transactions match your filters</li>";
+    ul.innerHTML =
+      "<li class='no-transactions'>No transactions match your filters</li>";
   }
 }
 
 // ---------- Modal/Form logic ----------
 const modal = document.getElementById("tx-modal");
-document.getElementById("add-btn").onclick = () => modal.classList.remove("hidden");
-document.getElementById("cancel-btn").onclick = () => modal.classList.add("hidden");
+document.getElementById("add-btn").onclick = () =>
+  modal.classList.remove("hidden");
+document.getElementById("cancel-btn").onclick = () =>
+  modal.classList.add("hidden");
 
 document.getElementById("tx-form").addEventListener("submit", function (e) {
   e.preventDefault();
@@ -280,7 +960,7 @@ document.getElementById("tx-form").addEventListener("submit", function (e) {
     isRecurring,
     isPinned,
     notes,
-    attachments: []
+    attachments: [],
   };
 
   const completeTransaction = (location, attachments = []) => {
@@ -305,8 +985,8 @@ document.getElementById("tx-form").addEventListener("submit", function (e) {
       // Add to recurring transactions with scheduling info
       data.settings.recurringTransactions.push({
         transactionId: txId,
-        schedule: 'monthly', // Default to monthly
-        nextDueDate: new Date(date).setMonth(new Date(date).getMonth() + 1) // Next month
+        schedule: "monthly", // Default to monthly
+        nextDueDate: new Date(date).setMonth(new Date(date).getMonth() + 1), // Next month
       });
     }
 
@@ -324,15 +1004,18 @@ document.getElementById("tx-form").addEventListener("submit", function (e) {
 
   // Process attachments if any
   if (fileInput.files.length > 0) {
-    processAttachments(fileInput.files).then(attachments => {
+    processAttachments(fileInput.files).then((attachments) => {
       // Request geolocation if available
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           function (position) {
-            completeTransaction({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            }, attachments);
+            completeTransaction(
+              {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+              },
+              attachments,
+            );
           },
           function (error) {
             console.log("Location error or permission denied:", error);
@@ -375,7 +1058,9 @@ function deleteTransaction(index) {
   // If it's a pinned transaction, remove from pinned list
   if (tx.isPinned) {
     const txId = tx.id || index;
-    data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(id => id !== txId);
+    data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(
+      (id) => id !== txId,
+    );
   }
 
   // Remove the transaction
@@ -409,32 +1094,37 @@ function openEditTransactionModal(index) {
   document.getElementById("edit-tx-desc").value = tx.description || "";
   document.getElementById("edit-tx-date").value = tx.date;
   document.getElementById("edit-tx-category").value = tx.category || "Other";
-  document.getElementById("edit-tx-recurring").checked = tx.isRecurring || false;
+  document.getElementById("edit-tx-recurring").checked =
+    tx.isRecurring || false;
   document.getElementById("edit-tx-pinned").checked = tx.isPinned || false;
   document.getElementById("edit-tx-notes").value = tx.notes || "";
 
   // Display existing attachments if any
-  const attachmentContainer = document.getElementById("edit-tx-attachments-preview");
+  const attachmentContainer = document.getElementById(
+    "edit-tx-attachments-preview",
+  );
   attachmentContainer.innerHTML = "";
   if (tx.attachments && tx.attachments.length > 0) {
     tx.attachments.forEach((attachment, i) => {
       const img = document.createElement("div");
       img.className = "attachment-preview";
       img.innerHTML = `
-        <img src="${attachment.data}" alt="Attachment ${i+1}">
+        <img src="${attachment.data}" alt="Attachment ${i + 1}">
         <button type="button" class="remove-attachment" data-index="${i}">×</button>
       `;
       attachmentContainer.appendChild(img);
     });
 
     // Add event listeners to remove buttons
-    attachmentContainer.querySelectorAll(".remove-attachment").forEach(btn => {
-      btn.addEventListener("click", function() {
-        const attachmentIndex = parseInt(this.dataset.index);
-        // We'll update the attachments array in the saveEditedTransaction function
-        this.parentElement.remove();
+    attachmentContainer
+      .querySelectorAll(".remove-attachment")
+      .forEach((btn) => {
+        btn.addEventListener("click", function () {
+          const attachmentIndex = parseInt(this.dataset.index);
+          // We'll update the attachments array in the saveEditedTransaction function
+          this.parentElement.remove();
+        });
       });
-    });
   }
 
   // Hide transaction modal and show edit modal
@@ -467,31 +1157,36 @@ function saveEditedTransaction() {
 
   // Handle attachments - get existing ones minus any that were removed
   const existingAttachments = [...(oldTx.attachments || [])];
-  const removedIndices = Array.from(document.querySelectorAll(".remove-attachment"))
-    .map(el => parseInt(el.dataset.index));
+  const removedIndices = Array.from(
+    document.querySelectorAll(".remove-attachment"),
+  ).map((el) => parseInt(el.dataset.index));
 
   // Filter out removed attachments
-  const remainingAttachments = existingAttachments.filter((_, i) =>
-    !removedIndices.includes(i));
+  const remainingAttachments = existingAttachments.filter(
+    (_, i) => !removedIndices.includes(i),
+  );
 
   // Add any new attachments from the file input
   const fileInput = document.getElementById("edit-tx-attachment");
   const newAttachments = [];
   if (fileInput.files.length > 0) {
     // We'll process these asynchronously, so we need to save the promise
-    const attachmentPromise = processAttachments(fileInput.files)
-      .then(attachments => {
+    const attachmentPromise = processAttachments(fileInput.files).then(
+      (attachments) => {
         // Combine remaining and new attachments
         const allAttachments = [...remainingAttachments, ...attachments];
 
         // First, reverse the effect of the original transaction on the balance
-        data.balances[oldTx.account] -= oldTx.type === "expense" ? -oldTx.amount : oldTx.amount;
+        data.balances[oldTx.account] -=
+          oldTx.type === "expense" ? -oldTx.amount : oldTx.amount;
 
         // Then, apply the effect of the new transaction values
-        data.balances[newAccount] += newType === "expense" ? -newAmount : newAmount;
+        data.balances[newAccount] +=
+          newType === "expense" ? -newAmount : newAmount;
 
         // Update the transaction object with all fields
-        const txId = oldTx.id || "tx-" + Math.random().toString(36).substr(2, 9);
+        const txId =
+          oldTx.id || "tx-" + Math.random().toString(36).substr(2, 9);
 
         // Update the transaction object
         const updatedTx = {
@@ -506,7 +1201,7 @@ function saveEditedTransaction() {
           isPinned,
           notes,
           location: oldTx.location, // Preserve original location data
-          attachments: allAttachments
+          attachments: allAttachments,
         };
 
         // Handle pinned status changes
@@ -517,7 +1212,8 @@ function saveEditedTransaction() {
           }
         } else if (!isPinned && oldTx.isPinned) {
           // Remove from pinned list
-          data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(id => id !== txId);
+          data.settings.pinnedTransactions =
+            data.settings.pinnedTransactions.filter((id) => id !== txId);
         }
 
         // Replace the transaction in the array
@@ -533,14 +1229,16 @@ function saveEditedTransaction() {
         // Hide reset modal
         document.getElementById("reset-confirm-modal").classList.add("hidden");
         document.body.classList.remove("modal-open");
-      });
+      },
+    );
 
     return; // Exit early, the promise will handle the rest
   }
 
   // If no new attachments, we can update synchronously
   // First, reverse the effect of the original transaction on the balance
-  data.balances[oldTx.account] -= oldTx.type === "expense" ? -oldTx.amount : oldTx.amount;
+  data.balances[oldTx.account] -=
+    oldTx.type === "expense" ? -oldTx.amount : oldTx.amount;
 
   // Then, apply the effect of the new transaction values
   data.balances[newAccount] += newType === "expense" ? -newAmount : newAmount;
@@ -561,7 +1259,7 @@ function saveEditedTransaction() {
     isPinned,
     notes,
     location: oldTx.location, // Preserve original location data
-    attachments: remainingAttachments
+    attachments: remainingAttachments,
   };
 
   // Handle pinned status changes
@@ -572,7 +1270,9 @@ function saveEditedTransaction() {
     }
   } else if (!isPinned && oldTx.isPinned) {
     // Remove from pinned list
-    data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(id => id !== txId);
+    data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(
+      (id) => id !== txId,
+    );
   }
 
   // Replace the transaction in the array
@@ -601,19 +1301,52 @@ function confirmReset() {
   data = {
     balances: { cu: 0, revolut: 0, cash: 0 },
     transactions: [],
+    accounts: [
+      { id: "cu", name: "Credit Union", icon: "university", color: "#4a90e2" },
+      { id: "revolut", name: "Revolut", icon: "credit-card", color: "#50c878" },
+      { id: "cash", name: "Cash", icon: "money-bill-wave", color: "#ff9800" }
+    ],
+    categories: [
+      "Food & Dining",
+      "Shopping",
+      "Transportation",
+      "Bills & Utilities",
+      "Entertainment",
+      "Health & Fitness",
+      "Travel",
+      "Education",
+      "Personal Care",
+      "Gifts",
+      "Other",
+    ],
+    budgets: {},
+    settings: {
+      theme: "light",
+      pinnedTransactions: [],
+      recurringTransactions: [],
+      version: APP_VERSION
+    },
   };
   saveData();
   renderBalances();
   renderTransactions();
   renderTotalBalance();
   document.getElementById("reset-confirm-modal").classList.add("hidden");
+  document.body.classList.remove("modal-open");
+  
+  // Show confirmation
+  showUpdateNotification("All data has been reset successfully");
 }
 
 // Balance over time chart
 function initBalanceOverTimeChart() {
   // Set up event listeners for chart controls
-  document.getElementById('balance-timespan').addEventListener('change', updateBalanceOverTimeChart);
-  document.getElementById('balance-account').addEventListener('change', updateBalanceOverTimeChart);
+  document
+    .getElementById("balance-timespan")
+    .addEventListener("change", updateBalanceOverTimeChart);
+  document
+    .getElementById("balance-account")
+    .addEventListener("change", updateBalanceOverTimeChart);
 
   // Initial chart update
   updateBalanceOverTimeChart();
@@ -621,193 +1354,219 @@ function initBalanceOverTimeChart() {
 
 function updateBalanceOverTimeChart() {
   // Get selected timespan and account
-  const timespan = document.getElementById('balance-timespan').value;
-  const account = document.getElementById('balance-account').value;
+  const timespan = document.getElementById("balance-timespan").value;
+  const account = document.getElementById("balance-account").value;
 
   // Get current date
   const now = new Date();
 
   // Determine date range based on timespan
-  let startDate, endDate = new Date();
-  let interval = 'day';
+  let startDate,
+    endDate = new Date();
+  let interval = "day";
 
-  switch(timespan) {
-    case 'week':
+  switch (timespan) {
+    case "week":
       startDate = new Date(now);
       startDate.setDate(now.getDate() - 7);
-      interval = 'day';
+      interval = "day";
       break;
-    case 'month':
+    case "month":
       startDate = new Date(now);
       startDate.setMonth(now.getMonth() - 1);
-      interval = 'day';
+      interval = "day";
       break;
-    case 'quarter':
+    case "quarter":
       startDate = new Date(now);
       startDate.setMonth(now.getMonth() - 3);
-      interval = 'week';
+      interval = "week";
       break;
-    case 'year':
+    case "year":
       startDate = new Date(now);
       startDate.setFullYear(now.getFullYear() - 1);
-      interval = 'month';
+      interval = "month";
       break;
     default:
       startDate = new Date(now);
       startDate.setDate(now.getDate() - 7);
-      interval = 'day';
+      interval = "day";
   }
-  
+
   // Create array of dates from start to end based on interval
   const dates = [];
   const current = new Date(startDate);
-  
+
   while (current <= endDate) {
     dates.push(new Date(current));
-    
-    switch(interval) {
-      case 'day':
+
+    switch (interval) {
+      case "day":
         current.setDate(current.getDate() + 1);
         break;
-      case 'week':
+      case "week":
         current.setDate(current.getDate() + 7);
         break;
-      case 'month':
+      case "month":
         current.setMonth(current.getMonth() + 1);
         break;
     }
   }
-  
+
   // Calculate balance at each date point
   const balances = [];
-  
+
   // For each date, calculate the balance based on all transactions up to that date
-  dates.forEach(date => {
+  dates.forEach((date) => {
     // Filter transactions up to this date
-    const txUpToDate = data.transactions.filter(tx => new Date(tx.date) <= date);
-    
+    const txUpToDate = data.transactions.filter(
+      (tx) => new Date(tx.date) <= date,
+    );
+
     // Calculate balance for the selected account or all accounts (total)
-    if (account === 'all') {
+    if (account === "all") {
       // Calculate total balance across all accounts
-      const totalBalance = Object.values(data.balances).reduce((sum, bal) => sum + bal, 0);
-      
+      const totalBalance = Object.values(data.balances).reduce(
+        (sum, bal) => sum + bal,
+        0,
+      );
+
       // Adjust for transactions not included in the current date
-      const futureTransactions = data.transactions.filter(tx => new Date(tx.date) > date);
-      
+      const futureTransactions = data.transactions.filter(
+        (tx) => new Date(tx.date) > date,
+      );
+
       // Calculate the effect of future transactions on the balance
       const adjustment = futureTransactions.reduce((sum, tx) => {
-        return sum + (tx.type === 'expense' ? tx.amount : -tx.amount);
+        return sum + (tx.type === "expense" ? tx.amount : -tx.amount);
       }, 0);
-      
+
       // Add adjusted balance to array
       balances.push(totalBalance - adjustment);
     } else {
       // Calculate balance for specific account
       let accountBalance = data.balances[account] || 0;
-      
+
       // Adjust for transactions not included in the current date
-      const futureTransactions = data.transactions.filter(tx => 
-        tx.account === account && new Date(tx.date) > date
+      const futureTransactions = data.transactions.filter(
+        (tx) => tx.account === account && new Date(tx.date) > date,
       );
-      
+
       // Calculate the effect of future transactions on the balance
       const adjustment = futureTransactions.reduce((sum, tx) => {
-        return sum + (tx.type === 'expense' ? tx.amount : -tx.amount);
+        return sum + (tx.type === "expense" ? tx.amount : -tx.amount);
       }, 0);
-      
+
       // Add adjusted balance to array
       balances.push(accountBalance - adjustment);
     }
   });
-  
+
   // Format dates for display
   const formatDate = (date) => {
-    switch(interval) {
-      case 'day':
-        return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-      case 'week':
-        return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-      case 'month':
-        return date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+    switch (interval) {
+      case "day":
+        return date.toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+        });
+      case "week":
+        return date.toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+        });
+      case "month":
+        return date.toLocaleDateString("en-GB", {
+          month: "short",
+          year: "numeric",
+        });
     }
   };
-  
+
   // Format labels
   const labels = dates.map(formatDate);
-  
+
   // Get the chart canvas
-  const ctx = document.getElementById('balance-over-time-chart').getContext('2d');
-  
+  const ctx = document
+    .getElementById("balance-over-time-chart")
+    .getContext("2d");
+
   // Destroy existing chart if it exists
   if (window.balanceOverTimeChart) {
     window.balanceOverTimeChart.destroy();
   }
-  
+
   // Determine chart title based on account selection
-  let chartTitle = 'Balance Over Time';
-  if (account !== 'all') {
-    chartTitle += ` - ${account === 'cu' ? 'Credit Union' : account === 'revolut' ? 'Revolut' : 'Cash'}`;
+  let chartTitle = "Balance Over Time";
+  if (account !== "all") {
+    chartTitle += ` - ${account === "cu" ? "Credit Union" : account === "revolut" ? "Revolut" : "Cash"}`;
   }
-  
+
   // Get account color based on selection
-  const chartColor = account === 'all' ? '#4a90e2' : 
-                    account === 'cu' ? '#6a75ca' : 
-                    account === 'revolut' ? '#f37736' : '#4caf50';
-  
+  const chartColor =
+    account === "all"
+      ? "#4a90e2"
+      : account === "cu"
+        ? "#6a75ca"
+        : account === "revolut"
+          ? "#f37736"
+          : "#4caf50";
+
   // Create chart
   window.balanceOverTimeChart = new Chart(ctx, {
-    type: 'line',
+    type: "line",
     data: {
       labels: labels,
-      datasets: [{
-        label: 'Balance',
-        data: balances,
-        backgroundColor: `${chartColor}33`,
-        borderColor: chartColor,
-        borderWidth: 2,
-        fill: true,
-        tension: 0.2,
-        pointRadius: 3,
-        pointHoverRadius: 5
-      }]
+      datasets: [
+        {
+          label: "Balance",
+          data: balances,
+          backgroundColor: `${chartColor}33`,
+          borderColor: chartColor,
+          borderWidth: 2,
+          fill: true,
+          tension: 0.2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+        },
+      ],
     },
     options: {
       responsive: true,
       plugins: {
         title: {
           display: true,
-          text: chartTitle
+          text: chartTitle,
         },
         tooltip: {
           callbacks: {
-            label: function(context) {
+            label: function (context) {
               return `Balance: ${formatAmt(context.raw)}`;
-            }
-          }
-        }
+            },
+          },
+        },
       },
       scales: {
         y: {
           beginAtZero: false,
           ticks: {
-            callback: function(value) {
+            callback: function (value) {
               return formatAmt(value);
-            }
-          }
-        }
-      }
-    }
+            },
+          },
+        },
+      },
+    },
   });
 }
 
 // Check for updates
 function checkForUpdates() {
   const storedVersion = localStorage.getItem("app-version") || "0.0.0";
-  
+
   if (storedVersion !== APP_VERSION) {
     // Show update notification
-    const notification = document.createElement('div');
-    notification.className = 'update-notification';
+    const notification = document.createElement("div");
+    notification.className = "update-notification";
     notification.innerHTML = `
       <div class="update-content">
         <i class="fas fa-info-circle"></i>
@@ -815,7 +1574,7 @@ function checkForUpdates() {
       </div>
     `;
     document.body.appendChild(notification);
-    
+
     // Update stored version and reload after a short delay
     localStorage.setItem("app-version", APP_VERSION);
     setTimeout(() => {
@@ -823,8 +1582,8 @@ function checkForUpdates() {
     }, 1500);
   } else {
     // Show "up to date" notification
-    const notification = document.createElement('div');
-    notification.className = 'update-notification';
+    const notification = document.createElement("div");
+    notification.className = "update-notification";
     notification.innerHTML = `
       <div class="update-content">
         <i class="fas fa-check-circle"></i>
@@ -832,10 +1591,10 @@ function checkForUpdates() {
       </div>
     `;
     document.body.appendChild(notification);
-    
+
     // Remove notification after a few seconds
     setTimeout(() => {
-      notification.classList.add('fade-out');
+      notification.classList.add("fade-out");
       setTimeout(() => {
         if (notification.parentNode) {
           notification.parentNode.removeChild(notification);
@@ -857,9 +1616,9 @@ function processAttachments(files) {
       return;
     }
 
-    Array.from(files).forEach(file => {
+    Array.from(files).forEach((file) => {
       // Only process image files
-      if (!file.type.match('image.*')) {
+      if (!file.type.match("image.*")) {
         processed++;
         if (processed === files.length) {
           resolve(attachments);
@@ -869,12 +1628,12 @@ function processAttachments(files) {
 
       const reader = new FileReader();
 
-      reader.onload = function(e) {
+      reader.onload = function (e) {
         attachments.push({
           name: file.name,
           type: file.type,
           size: file.size,
-          data: e.target.result
+          data: e.target.result,
         });
 
         processed++;
@@ -883,7 +1642,7 @@ function processAttachments(files) {
         }
       };
 
-      reader.onerror = function() {
+      reader.onerror = function () {
         processed++;
         if (processed === files.length) {
           resolve(attachments);
@@ -897,15 +1656,15 @@ function processAttachments(files) {
 
 // Apply theme (light/dark)
 function applyTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute("data-theme", theme);
   data.settings.theme = theme;
   saveData();
 }
 
 // Toggle theme
 function toggleTheme() {
-  const currentTheme = data.settings.theme || 'light';
-  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+  const currentTheme = data.settings.theme || "light";
+  const newTheme = currentTheme === "light" ? "dark" : "light";
   applyTheme(newTheme);
 }
 
@@ -920,10 +1679,18 @@ function updateCharts() {
   if (window.balanceOverTimeChart) window.balanceOverTimeChart.destroy();
 
   // Get canvas contexts
-  const incomeVsExpenseCtx = document.getElementById('income-expense-chart').getContext('2d');
-  const categoryCtx = document.getElementById('category-chart').getContext('2d');
-  const accountBalanceCtx = document.getElementById('account-balance-chart').getContext('2d');
-  const balanceOverTimeCtx = document.getElementById('balance-over-time-chart')?.getContext('2d');
+  const incomeVsExpenseCtx = document
+    .getElementById("income-expense-chart")
+    .getContext("2d");
+  const categoryCtx = document
+    .getElementById("category-chart")
+    .getContext("2d");
+  const accountBalanceCtx = document
+    .getElementById("account-balance-chart")
+    .getContext("2d");
+  const balanceOverTimeCtx = document
+    .getElementById("balance-over-time-chart")
+    ?.getContext("2d");
   if (!balanceOverTimeCtx) return; // Skip if canvas not found
 
   // Get current date
@@ -932,131 +1699,139 @@ function updateCharts() {
   const currentYear = now.getFullYear();
 
   // Filter transactions for the current month
-  const thisMonthTransactions = data.transactions.filter(tx => {
+  const thisMonthTransactions = data.transactions.filter((tx) => {
     const txDate = new Date(tx.date);
-    return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
+    return (
+      txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear
+    );
   });
 
   // Income vs Expense data
   const income = thisMonthTransactions
-    .filter(tx => tx.type === 'income')
+    .filter((tx) => tx.type === "income")
     .reduce((sum, tx) => sum + tx.amount, 0);
 
   const expense = thisMonthTransactions
-    .filter(tx => tx.type === 'expense')
+    .filter((tx) => tx.type === "expense")
     .reduce((sum, tx) => sum + tx.amount, 0);
 
   // Create income vs expense chart
   window.incomeVsExpenseChart = new Chart(incomeVsExpenseCtx, {
-    type: 'bar',
+    type: "bar",
     data: {
-      labels: ['Income', 'Expense'],
-      datasets: [{
-        label: 'Amount (€)',
-        data: [income, expense],
-        backgroundColor: ['rgba(76, 175, 80, 0.6)', 'rgba(244, 67, 54, 0.6)'],
-        borderColor: ['rgb(76, 175, 80)', 'rgb(244, 67, 54)'],
-        borderWidth: 1
-      }]
+      labels: ["Income", "Expense"],
+      datasets: [
+        {
+          label: "Amount (€)",
+          data: [income, expense],
+          backgroundColor: ["rgba(76, 175, 80, 0.6)", "rgba(244, 67, 54, 0.6)"],
+          borderColor: ["rgb(76, 175, 80)", "rgb(244, 67, 54)"],
+          borderWidth: 1,
+        },
+      ],
     },
     options: {
       responsive: true,
       plugins: {
         title: {
           display: true,
-          text: 'Income vs Expense This Month'
-        }
+          text: "Income vs Expense This Month",
+        },
       },
       scales: {
         y: {
-          beginAtZero: true
-        }
-      }
-    }
+          beginAtZero: true,
+        },
+      },
+    },
   });
 
   // Category data
   const categories = {};
-  thisMonthTransactions.forEach(tx => {
-    if (tx.type === 'expense') {
-      const category = tx.category || 'Other';
+  thisMonthTransactions.forEach((tx) => {
+    if (tx.type === "expense") {
+      const category = tx.category || "Other";
       categories[category] = (categories[category] || 0) + tx.amount;
     }
   });
 
   // Create category chart
   window.categoryChart = new Chart(categoryCtx, {
-    type: 'doughnut',
+    type: "doughnut",
     data: {
       labels: Object.keys(categories),
-      datasets: [{
-        data: Object.values(categories),
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.6)',
-          'rgba(54, 162, 235, 0.6)',
-          'rgba(255, 206, 86, 0.6)',
-          'rgba(75, 192, 192, 0.6)',
-          'rgba(153, 102, 255, 0.6)',
-          'rgba(255, 159, 64, 0.6)',
-          'rgba(199, 199, 199, 0.6)',
-          'rgba(83, 102, 255, 0.6)',
-          'rgba(40, 159, 64, 0.6)',
-          'rgba(210, 199, 199, 0.6)',
-          'rgba(78, 52, 199, 0.6)',
-          'rgba(225, 109, 64, 0.6)'
-        ]
-      }]
+      datasets: [
+        {
+          data: Object.values(categories),
+          backgroundColor: [
+            "rgba(255, 99, 132, 0.6)",
+            "rgba(54, 162, 235, 0.6)",
+            "rgba(255, 206, 86, 0.6)",
+            "rgba(75, 192, 192, 0.6)",
+            "rgba(153, 102, 255, 0.6)",
+            "rgba(255, 159, 64, 0.6)",
+            "rgba(199, 199, 199, 0.6)",
+            "rgba(83, 102, 255, 0.6)",
+            "rgba(40, 159, 64, 0.6)",
+            "rgba(210, 199, 199, 0.6)",
+            "rgba(78, 52, 199, 0.6)",
+            "rgba(225, 109, 64, 0.6)",
+          ],
+        },
+      ],
     },
     options: {
       responsive: true,
       plugins: {
         title: {
           display: true,
-          text: 'Spending by Category'
-        }
-      }
-    }
+          text: "Spending by Category",
+        },
+      },
+    },
   });
 
   // Account balance chart
   window.accountBalanceChart = new Chart(accountBalanceCtx, {
-    type: 'pie',
+    type: "pie",
     data: {
-      labels: ['Credit Union', 'Revolut', 'Cash'],
-      datasets: [{
-        data: [
-          data.balances.cu || 0,
-          data.balances.revolut || 0,
-          data.balances.cash || 0
-        ],
-        backgroundColor: [
-          'rgba(106, 117, 202, 0.6)',
-          'rgba(243, 119, 54, 0.6)',
-          'rgba(76, 175, 80, 0.6)'
-        ],
-        borderColor: [
-          'rgb(106, 117, 202)',
-          'rgb(243, 119, 54)',
-          'rgb(76, 175, 80)'
-        ],
-        borderWidth: 1
-      }]
+      labels: ["Credit Union", "Revolut", "Cash"],
+      datasets: [
+        {
+          data: [
+            data.balances.cu || 0,
+            data.balances.revolut || 0,
+            data.balances.cash || 0,
+          ],
+          backgroundColor: [
+            "rgba(106, 117, 202, 0.6)",
+            "rgba(243, 119, 54, 0.6)",
+            "rgba(76, 175, 80, 0.6)",
+          ],
+          borderColor: [
+            "rgb(106, 117, 202)",
+            "rgb(243, 119, 54)",
+            "rgb(76, 175, 80)",
+          ],
+          borderWidth: 1,
+        },
+      ],
     },
     options: {
       responsive: true,
       plugins: {
         title: {
           display: true,
-          text: 'Balance Distribution'
-        }
-      }
-    }
+          text: "Balance Distribution",
+        },
+      },
+    },
   });
 }
 
 // Search transactions
 function searchTransactions(query) {
-  if (!query || query.trim() === '') {
+  if (!query || query.trim() === "") {
     renderTransactions();
     return;
   }
@@ -1064,18 +1839,20 @@ function searchTransactions(query) {
   query = query.toLowerCase().trim();
 
   // Filter transactions that match the query
-  let searchResults = data.transactions.filter(tx => {
-    const desc = (tx.description || '').toLowerCase();
-    const category = (tx.category || '').toLowerCase();
+  let searchResults = data.transactions.filter((tx) => {
+    const desc = (tx.description || "").toLowerCase();
+    const category = (tx.category || "").toLowerCase();
     const date = tx.date;
     const amount = tx.amount.toString();
-    const notes = (tx.notes || '').toLowerCase();
+    const notes = (tx.notes || "").toLowerCase();
 
-    return desc.includes(query) ||
-           category.includes(query) ||
-           date.includes(query) ||
-           amount.includes(query) ||
-           notes.includes(query);
+    return (
+      desc.includes(query) ||
+      category.includes(query) ||
+      date.includes(query) ||
+      amount.includes(query) ||
+      notes.includes(query)
+    );
   });
 
   // Update the transaction list with search results
@@ -1083,7 +1860,8 @@ function searchTransactions(query) {
   ul.innerHTML = "";
 
   if (searchResults.length === 0) {
-    ul.innerHTML = "<li class='no-transactions'>No transactions match your search</li>";
+    ul.innerHTML =
+      "<li class='no-transactions'>No transactions match your search</li>";
     return;
   }
 
@@ -1107,32 +1885,40 @@ function searchTransactions(query) {
   searchResults.forEach((tx) => {
     const li = document.createElement("li");
     li.setAttribute("data-account", tx.account);
-    li.setAttribute("data-id", tx.id || "tx-" + Math.random().toString(36).substr(2, 9));
+    li.setAttribute(
+      "data-id",
+      tx.id || "tx-" + Math.random().toString(36).substr(2, 9),
+    );
 
     if (tx.isPinned) {
       li.classList.add("pinned");
     }
 
-    const recurringIcon = tx.isRecurring ?
-      `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>` : '';
+    const recurringIcon = tx.isRecurring
+      ? `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>`
+      : "";
 
     li.innerHTML = `
       <span>
         <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}"
            style="color: var(--${tx.type}-color);"></i>
-        <span class="account-dot" style="background-color: var(--${tx.account}-color);"></span>
+        <span class="account-dot" style="background-color: ${getAccountColor(tx.account)};"></span>
         ${tx.description || "(no desc)"}
         ${recurringIcon}
-        ${tx.category ? `<span class="category-tag">${tx.category}</span>` : ''}
+        ${tx.category ? `<span class="category-tag">${tx.category}</span>` : ""}
       </span>
       <span>${formatAmt(tx.amount)}</span>
     `;
 
-    li.addEventListener("click", function() {
-      const index = data.transactions.findIndex(t =>
-        t.id === tx.id ||
-        (t.date === tx.date && t.amount === tx.amount && t.description === tx.description &&
-         t.type === tx.type && t.account === tx.account)
+    li.addEventListener("click", function () {
+      const index = data.transactions.findIndex(
+        (t) =>
+          t.id === tx.id ||
+          (t.date === tx.date &&
+            t.amount === tx.amount &&
+            t.description === tx.description &&
+            t.type === tx.type &&
+            t.account === tx.account),
       );
 
       if (index !== -1) {
@@ -1151,12 +1937,31 @@ function openTransactionDetails(tx) {
   const info = document.getElementById("tx-info");
   const mapPreview = document.getElementById("map-preview");
 
-  let detailsHtml = "<p><strong>Description:</strong> " + (tx.description || "(no desc)") + "</p>" +
-                   "<p><strong>Account:</strong> " + (tx.account === "cu" ? "Credit Union" : tx.account === "revolut" ? "Revolut" : "Cash") + "</p>" +
-                   "<p><strong>Type:</strong> " + tx.type + "</p>" +
-                   "<p><strong>Amount:</strong> " + formatAmt(tx.amount) + "</p>" +
-                   "<p><strong>Date:</strong> " + tx.date + "</p>" +
-                   "<p><strong>Category:</strong> " + (tx.category || "Uncategorized") + "</p>";
+  // Get account name
+  const getAccountName = (accountId) => {
+    const account = data.accounts.find(a => a.id === accountId);
+    return account ? account.name : "Unknown Account";
+  };
+
+  let detailsHtml =
+    "<p><strong>Description:</strong> " +
+    (tx.description || "(no desc)") +
+    "</p>" +
+    "<p><strong>Account:</strong> " +
+    getAccountName(tx.account) +
+    "</p>" +
+    "<p><strong>Amount:</strong> " +
+    formatAmt(tx.amount) +
+    "</p>" +
+    "<p><strong>Type:</strong> " +
+    (tx.type === "income" ? "Income" : "Expense") +
+    "</p>" +
+    "<p><strong>Date:</strong> " +
+    tx.date +
+    "</p>" +
+    "<p><strong>Category:</strong> " +
+    (tx.category || "Uncategorized") +
+    "</p>";
 
   if (tx.isRecurring) {
     detailsHtml += "<p><strong>Recurring:</strong> Yes</p>";
@@ -1167,8 +1972,9 @@ function openTransactionDetails(tx) {
   }
 
   if (tx.attachments && tx.attachments.length > 0) {
-    detailsHtml += "<div class='attachment-section'><strong>Attachments:</strong><div class='attachment-list'>";
-    tx.attachments.forEach(attachment => {
+    detailsHtml +=
+      "<div class='attachment-section'><strong>Attachments:</strong><div class='attachment-list'>";
+    tx.attachments.forEach((attachment) => {
       detailsHtml += `<div class='attachment-item'><img src='${attachment.data}' alt='Receipt'></div>`;
     });
     detailsHtml += "</div></div>";
@@ -1200,19 +2006,26 @@ function openTransactionDetails(tx) {
   setTimeout(() => {
     if (tx.location) {
       try {
-        currentMap = L.map("map-preview").setView([tx.location.latitude, tx.location.longitude], 13);
+        currentMap = L.map("map-preview").setView(
+          [tx.location.latitude, tx.location.longitude],
+          13,
+        );
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution: "&copy; OpenStreetMap contributors",
         }).addTo(currentMap);
-        L.marker([tx.location.latitude, tx.location.longitude]).addTo(currentMap);
+        L.marker([tx.location.latitude, tx.location.longitude]).addTo(
+          currentMap,
+        );
         // Force map to recalculate size
         currentMap.invalidateSize();
       } catch (e) {
         console.error("Error initializing map:", e);
-        mapPreview.innerHTML = "<div class='no-location'>Error loading map</div>";
+        mapPreview.innerHTML =
+          "<div class='no-location'>Error loading map</div>";
       }
     } else {
-      mapPreview.innerHTML = "<div class='no-location'>No location data available</div>";
+      mapPreview.innerHTML =
+        "<div class='no-location'>No location data available</div>";
     }
   }, 100);
 }
@@ -1238,7 +2051,9 @@ function togglePinTransaction(index) {
       data.settings.pinnedTransactions.push(txId);
     }
   } else {
-    data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(id => id !== txId);
+    data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(
+      (id) => id !== txId,
+    );
   }
 
   // Save and update UI
@@ -1265,11 +2080,11 @@ function filterByDateRange(startDate, endDate) {
   }
 
   // Convert to Date objects if strings are provided
-  if (startDate && typeof startDate === 'string') {
+  if (startDate && typeof startDate === "string") {
     startDate = new Date(startDate);
   }
 
-  if (endDate && typeof endDate === 'string') {
+  if (endDate && typeof endDate === "string") {
     endDate = new Date(endDate);
     // Set time to end of day
     endDate.setHours(23, 59, 59, 999);
@@ -1279,11 +2094,11 @@ function filterByDateRange(startDate, endDate) {
   let filteredTx = data.transactions;
 
   if (startDate) {
-    filteredTx = filteredTx.filter(tx => new Date(tx.date) >= startDate);
+    filteredTx = filteredTx.filter((tx) => new Date(tx.date) >= startDate);
   }
 
   if (endDate) {
-    filteredTx = filteredTx.filter(tx => new Date(tx.date) <= endDate);
+    filteredTx = filteredTx.filter((tx) => new Date(tx.date) <= endDate);
   }
 
   // Render filtered transactions
@@ -1291,7 +2106,8 @@ function filterByDateRange(startDate, endDate) {
   ul.innerHTML = "";
 
   if (filteredTx.length === 0) {
-    ul.innerHTML = "<li class='no-transactions'>No transactions in the selected date range</li>";
+    ul.innerHTML =
+      "<li class='no-transactions'>No transactions in the selected date range</li>";
     return;
   }
 
@@ -1315,32 +2131,40 @@ function filterByDateRange(startDate, endDate) {
   filteredTx.forEach((tx) => {
     const li = document.createElement("li");
     li.setAttribute("data-account", tx.account);
-    li.setAttribute("data-id", tx.id || "tx-" + Math.random().toString(36).substr(2, 9));
+    li.setAttribute(
+      "data-id",
+      tx.id || "tx-" + Math.random().toString(36).substr(2, 9),
+    );
 
     if (tx.isPinned) {
       li.classList.add("pinned");
     }
 
-    const recurringIcon = tx.isRecurring ?
-      `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>` : '';
+    const recurringIcon = tx.isRecurring
+      ? `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>`
+      : "";
 
     li.innerHTML = `
       <span>
         <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}"
            style="color: var(--${tx.type}-color);"></i>
-        <span class="account-dot" style="background-color: var(--${tx.account}-color);"></span>
+        <span class="account-dot" style="background-color: ${getAccountColor(tx.account)};"></span>
         ${tx.description || "(no desc)"}
         ${recurringIcon}
-        ${tx.category ? `<span class="category-tag">${tx.category}</span>` : ''}
+        ${tx.category ? `<span class="category-tag">${tx.category}</span>` : ""}
       </span>
       <span>${formatAmt(tx.amount)}</span>
     `;
 
-    li.addEventListener("click", function() {
-      const index = data.transactions.findIndex(t =>
-        t.id === tx.id ||
-        (t.date === tx.date && t.amount === tx.amount && t.description === tx.description &&
-         t.type === tx.type && t.account === tx.account)
+    li.addEventListener("click", function () {
+      const index = data.transactions.findIndex(
+        (t) =>
+          t.id === tx.id ||
+          (t.date === tx.date &&
+            t.amount === tx.amount &&
+            t.description === tx.description &&
+            t.type === tx.type &&
+            t.account === tx.account),
       );
 
       if (index !== -1) {
@@ -1356,38 +2180,40 @@ function filterByDateRange(startDate, endDate) {
 // Switch between app views (transactions, charts, budgets)
 function switchView(viewName) {
   // Hide all views
-  document.getElementById('transactions-view').classList.add('hidden');
-  document.getElementById('charts-view').classList.add('hidden');
-  document.getElementById('budgets-view').classList.add('hidden');
+  document.getElementById("transactions-view").classList.add("hidden");
+  document.getElementById("charts-view").classList.add("hidden");
+  document.getElementById("budgets-view").classList.add("hidden");
 
   // Remove active class from all nav items
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.classList.remove('active');
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    item.classList.remove("active");
   });
 
   // Show selected view and highlight nav item
-  document.getElementById(`${viewName}-view`).classList.remove('hidden');
-  document.querySelector(`.nav-item[data-view="${viewName}"]`).classList.add('active');
+  document.getElementById(`${viewName}-view`).classList.remove("hidden");
+  document
+    .querySelector(`.nav-item[data-view="${viewName}"]`)
+    .classList.add("active");
 
   // Update current view
   currentView = viewName;
 
   // If switching to charts view, update charts
-  if (viewName === 'charts') {
+  if (viewName === "charts") {
     updateCharts();
     updateBalanceOverTimeChart();
   }
 
   // If switching to budgets view, render budgets
-  if (viewName === 'budgets') {
+  if (viewName === "budgets") {
     renderBudgets();
   }
 }
 
 // Render budgets
 function renderBudgets() {
-  const budgetContainer = document.getElementById('budget-items');
-  budgetContainer.innerHTML = '';
+  const budgetContainer = document.getElementById("budget-items");
+  budgetContainer.innerHTML = "";
 
   // Get all categories
   const categories = data.categories || [];
@@ -1400,35 +2226,39 @@ function renderBudgets() {
   const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
 
   // Filter transactions for current month
-  const thisMonthTransactions = data.transactions.filter(tx => {
+  const thisMonthTransactions = data.transactions.filter((tx) => {
     const txDate = new Date(tx.date);
-    return txDate >= monthStart && txDate <= monthEnd && tx.type === 'expense';
+    return txDate >= monthStart && txDate <= monthEnd && tx.type === "expense";
   });
 
   // Calculate spending by category
   const spendingByCategory = {};
-  thisMonthTransactions.forEach(tx => {
-    const category = tx.category || 'Other';
-    spendingByCategory[category] = (spendingByCategory[category] || 0) + tx.amount;
+  thisMonthTransactions.forEach((tx) => {
+    const category = tx.category || "Other";
+    spendingByCategory[category] =
+      (spendingByCategory[category] || 0) + tx.amount;
   });
 
   // For each category, create a budget item
-  categories.forEach(category => {
-    if (category === 'Income') return; // Skip Income category for budgets
+  categories.forEach((category) => {
+    if (category === "Income") return; // Skip Income category for budgets
 
-    const budgetItem = document.createElement('div');
-    budgetItem.className = 'budget-item';
+    const budgetItem = document.createElement("div");
+    budgetItem.className = "budget-item";
 
     // Get budget amount from data or default to 0
     const budgetAmount = (data.budgets && data.budgets[category]) || 0;
     // Get actual spending
     const actualSpending = spendingByCategory[category] || 0;
     // Calculate progress percentage (capped at 100%)
-    const progressPercent = budgetAmount > 0 ? Math.min(Math.round((actualSpending / budgetAmount) * 100), 100) : 0;
+    const progressPercent =
+      budgetAmount > 0
+        ? Math.min(Math.round((actualSpending / budgetAmount) * 100), 100)
+        : 0;
     // Determine status color
-    let statusColor = 'var(--accent)';
-    if (progressPercent > 90) statusColor = 'var(--expense-color)';
-    else if (progressPercent > 70) statusColor = 'orange';
+    let statusColor = "var(--accent)";
+    if (progressPercent > 90) statusColor = "var(--expense-color)";
+    else if (progressPercent > 70) statusColor = "orange";
 
     budgetItem.innerHTML = `
       <div class="budget-header">
@@ -1451,28 +2281,30 @@ function renderBudgets() {
     budgetContainer.appendChild(budgetItem);
 
     // Add event listener to edit budget button
-    budgetItem.querySelector('.set-budget-btn').addEventListener('click', function() {
-      const category = this.dataset.category;
-      const currentBudget = (data.budgets && data.budgets[category]) || 0;
-      const newBudget = prompt(`Set budget for ${category}:`, currentBudget);
+    budgetItem
+      .querySelector(".set-budget-btn")
+      .addEventListener("click", function () {
+        const category = this.dataset.category;
+        const currentBudget = (data.budgets && data.budgets[category]) || 0;
+        const newBudget = prompt(`Set budget for ${category}:`, currentBudget);
 
-      if (newBudget !== null) {
-        // Parse and validate budget amount
-        const budgetAmount = parseFloat(newBudget);
-        if (!isNaN(budgetAmount) && budgetAmount >= 0) {
-          // Initialize budgets object if it doesn't exist
-          if (!data.budgets) data.budgets = {};
-          // Set budget
-          data.budgets[category] = budgetAmount;
-          // Save data
-          saveData();
-          // Re-render budgets
-          renderBudgets();
-        } else {
-          alert('Please enter a valid budget amount.');
+        if (newBudget !== null) {
+          // Parse and validate budget amount
+          const budgetAmount = parseFloat(newBudget);
+          if (!isNaN(budgetAmount) && budgetAmount >= 0) {
+            // Initialize budgets object if it doesn't exist
+            if (!data.budgets) data.budgets = {};
+            // Set budget
+            data.budgets[category] = budgetAmount;
+            // Save data
+            saveData();
+            // Re-render budgets
+            renderBudgets();
+          } else {
+            alert("Please enter a valid budget amount.");
+          }
         }
-      }
-    });
+      });
   });
 }
 
@@ -1481,31 +2313,36 @@ document.addEventListener("DOMContentLoaded", () => {
   renderBalances();
   renderTransactions();
   renderTotalBalance();
+  updateAccountOptions();
+  updateFilters();
+  initAccountManagement();
 
   // Initialize views
-  if (document.getElementById('charts-view')) {
+  if (document.getElementById("charts-view")) {
     updateCharts();
   }
 
-  if (document.getElementById('budgets-view')) {
+  if (document.getElementById("budgets-view")) {
     renderBudgets();
   }
 
   // Make total balance clickable to show all transactions
-  document.querySelector(".total-balance").addEventListener("click", function() {
-    filters.account = "all";
-    filters.type = "all";
-    document.getElementById("account-filter").value = "all";
-    document.getElementById("type-filter").value = "all";
-    document.getElementById("date-range-filter").value = "all";
-    document.getElementById("search-input").value = "";
-    updateActiveAccountCard();
-    renderTransactions();
-  });
+  document
+    .querySelector(".total-balance")
+    .addEventListener("click", function () {
+      filters.account = "all";
+      filters.type = "all";
+      document.getElementById("account-filter").value = "all";
+      document.getElementById("type-filter").value = "all";
+      document.getElementById("date-range-filter").value = "all";
+      document.getElementById("search-input").value = "";
+      updateActiveAccountCard();
+      renderTransactions();
+    });
 
   // Set up navigation between views
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', function() {
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    item.addEventListener("click", function () {
       switchView(this.dataset.view);
     });
   });
@@ -1514,57 +2351,85 @@ document.addEventListener("DOMContentLoaded", () => {
   initBalanceOverTimeChart();
 
   // Initialize with transactions view
-  switchView('transactions');
+  switchView("transactions");
 
   // Search functionality
-  document.getElementById("search-input").addEventListener("input", function() {
-    searchTransactions(this.value);
-  });
+  document
+    .getElementById("search-input")
+    .addEventListener("input", function () {
+      searchTransactions(this.value);
+    });
 
   // Date range filter
-  document.getElementById("date-range-filter").addEventListener("change", function() {
-    const value = this.value;
-    const now = new Date();
-    let startDate, endDate;
+  document
+    .getElementById("date-range-filter")
+    .addEventListener("change", function () {
+      const value = this.value;
+      const now = new Date();
+      let startDate, endDate;
 
-    switch(value) {
-      case "today":
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-        break;
-      case "week":
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - now.getDay());
-        endDate = new Date(now);
-        endDate.setDate(startDate.getDate() + 6);
-        endDate.setHours(23, 59, 59);
-        break;
-      case "month":
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-        break;
-      case "year":
-        startDate = new Date(now.getFullYear(), 0, 1);
-        endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
-        break;
-      case "custom":
-        // Show custom date range inputs
-        document.getElementById("custom-date-range").classList.remove("hidden");
-        return;
-      default:
-        // All transactions (no date filter)
-        filterByDateRange(null, null);
-        document.getElementById("custom-date-range").classList.add("hidden");
-        return;
-    }
+      switch (value) {
+        case "today":
+          startDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+          );
+          endDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+            23,
+            59,
+            59,
+          );
+          break;
+        case "week":
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - now.getDay());
+          endDate = new Date(now);
+          endDate.setDate(startDate.getDate() + 6);
+          endDate.setHours(23, 59, 59);
+          break;
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = new Date(
+            now.getFullYear(),
+            now.getMonth() + 1,
+            0,
+            23,
+            59,
+            59,
+          );
+          break;
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+          break;
+        case "custom":
+          // Show custom date range inputs
+          document
+            .getElementById("custom-date-range")
+            .classList.remove("hidden");
+          return;
+        default:
+          // All transactions (no date filter)
+          filterByDateRange(null, null);
+          document.getElementById("custom-date-range").classList.add("hidden");
+          return;
+      }
 
-    document.getElementById("custom-date-range").classList.add("hidden");
-    filterByDateRange(startDate, endDate);
-  });
+      document.getElementById("custom-date-range").classList.add("hidden");
+      filterByDateRange(startDate, endDate);
+    });
 
   // Custom date range inputs
-  document.getElementById("custom-start-date").addEventListener("change", applyCustomDateRange);
-  document.getElementById("custom-end-date").addEventListener("change", applyCustomDateRange);
+  document
+    .getElementById("custom-start-date")
+    .addEventListener("change", applyCustomDateRange);
+  document
+    .getElementById("custom-end-date")
+    .addEventListener("change", applyCustomDateRange);
 
   function applyCustomDateRange() {
     const startDate = document.getElementById("custom-start-date").value;
@@ -1576,32 +2441,38 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Pin/Unpin transaction
-  document.getElementById("pin-tx-btn").addEventListener("click", function() {
+  document.getElementById("pin-tx-btn").addEventListener("click", function () {
     togglePinTransaction(currentTxIndex);
   });
 
   // Theme toggle
-    document.getElementById("theme-toggle").addEventListener("click", function() {
+  document
+    .getElementById("theme-toggle")
+    .addEventListener("click", function () {
       toggleTheme();
     });
-  
-    // Check for updates
-    document.getElementById("refresh-btn").addEventListener("click", function() {
-      checkForUpdates();
-      this.classList.add('spinning');
-      setTimeout(() => this.classList.remove('spinning'), 500);
-    });
+
+  // Check for updates
+  document.getElementById("refresh-btn").addEventListener("click", function () {
+    checkForUpdates();
+    this.classList.add("spinning");
+    setTimeout(() => this.classList.remove("spinning"), 500);
+  });
 
   // Prevent pinch zoom
-  document.addEventListener('touchmove', function (event) {
-    if (event.scale !== 1) {
-      event.preventDefault();
-    }
-  }, { passive: false });
+  document.addEventListener(
+    "touchmove",
+    function (event) {
+      if (event.scale !== 1) {
+        event.preventDefault();
+      }
+    },
+    { passive: false },
+  );
 
   // Prevent double-tap zoom
   let lastTapTime = 0;
-  document.addEventListener('touchend', function (event) {
+  document.addEventListener("touchend", function (event) {
     const currentTime = new Date().getTime();
     const tapLength = currentTime - lastTapTime;
     if (tapLength < 300 && tapLength > 0) {
@@ -1612,108 +2483,142 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Set viewport height variable for mobile browsers
   const setViewportHeight = () => {
-    document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    document.documentElement.style.setProperty(
+      "--vh",
+      `${window.innerHeight * 0.01}px`,
+    );
   };
-  window.addEventListener('resize', setViewportHeight);
+  window.addEventListener("resize", setViewportHeight);
   setViewportHeight();
 
   // Make sure transaction modal is hidden on page load
   document.getElementById("transaction-modal").classList.add("hidden");
   document.getElementById("edit-tx-modal").classList.add("hidden");
+  document.getElementById("accounts-modal").classList.add("hidden");
 
-  // Add click event for close button
-  document.getElementById("tx-close-btn").addEventListener("click", function(e) {
-    e.stopPropagation();
-    document.getElementById("transaction-modal").classList.add("hidden");
-    document.body.classList.remove("modal-open");
-    if (currentMap) {
-        currentMap.remove();
-        currentMap = null;
-    }
-    // Restore scroll position when closing modal
-    const scrollPos = parseInt(modal.dataset.scrollPosition || '0');
-    setTimeout(() => window.scrollTo(0, scrollPos), 0);
-  });
-
-  // Close modal when clicking outside the content
-  document.getElementById("transaction-modal").addEventListener("click", function(e) {
-    if (e.target === this) {
-      this.classList.add("hidden");
+  // Transaction modal close button
+  document
+    .getElementById("tx-close-btn")
+    .addEventListener("click", function (e) {
+      e.stopPropagation();
+      document.getElementById("transaction-modal").classList.add("hidden");
       document.body.classList.remove("modal-open");
       if (currentMap) {
         currentMap.remove();
         currentMap = null;
       }
       // Restore scroll position when closing modal
-      const scrollPos = parseInt(this.dataset.scrollPosition || '0');
+      const scrollPos = parseInt(modal.dataset.scrollPosition || "0");
       setTimeout(() => window.scrollTo(0, scrollPos), 0);
-    }
-  });
+    });
+
+  document
+    .getElementById("transaction-modal")
+    .addEventListener("click", function (e) {
+      if (e.target === this) {
+        this.classList.add("hidden");
+        document.body.classList.remove("modal-open");
+        if (currentMap) {
+          currentMap.remove();
+          currentMap = null;
+        }
+        // Restore scroll position when closing modal
+        const scrollPos = parseInt(this.dataset.scrollPosition || "0");
+        setTimeout(() => window.scrollTo(0, scrollPos), 0);
+      }
+    });
 
   // Delete transaction button
-  document.getElementById("delete-tx-btn").addEventListener("click", function() {
-    deleteTransaction(currentTxIndex);
-  });
+  document
+    .getElementById("delete-tx-btn")
+    .addEventListener("click", function () {
+      deleteTransaction(currentTxIndex);
+    });
 
   // Edit transaction button
-  document.getElementById("edit-tx-btn").addEventListener("click", function() {
+  document.getElementById("edit-tx-btn").addEventListener("click", function () {
     openEditTransactionModal(currentTxIndex);
   });
 
   // Cancel edit button
-  document.getElementById("edit-cancel-btn").addEventListener("click", function() {
-    document.getElementById("edit-tx-modal").classList.add("hidden");
-    document.body.classList.remove("modal-open");
-  });
+  document
+    .getElementById("edit-cancel-btn")
+    .addEventListener("click", function () {
+      document.getElementById("edit-tx-modal").classList.add("hidden");
+      document.body.classList.remove("modal-open");
+    });
 
   // Edit transaction form submission
-  document.getElementById("edit-tx-form").addEventListener("submit", function(e) {
-    e.preventDefault();
-    saveEditedTransaction();
-  });
+  document
+    .getElementById("edit-tx-form")
+    .addEventListener("submit", function (e) {
+      e.preventDefault();
+      saveEditedTransaction();
+    });
 
   // Reset all data button
-  document.getElementById("reset-btn").addEventListener("click", resetAllData);
+  document.getElementById("reset-btn").addEventListener("click", confirmReset);
+  
+  // Account management event listeners
+  document.getElementById("accounts-close-btn").addEventListener("click", cancelAccountModal);
+  document.getElementById("cancel-account-btn").addEventListener("click", cancelAccountModal);
+  document.getElementById("add-account-btn").addEventListener("click", saveAccount);
+  document.getElementById("delete-account-btn").addEventListener("click", deleteAccount);
+  
+  // Initialize account management UI components
+  initAccountManagement();
 
   // Reset confirmation modal buttons
-  document.getElementById("reset-confirm-btn").addEventListener("click", confirmReset);
-  document.getElementById("reset-cancel-btn").addEventListener("click", function() {
-    document.getElementById("reset-confirm-modal").classList.add("hidden");
-    document.body.classList.remove("modal-open");
-  });
-  document.getElementById("reset-cancel-close-btn").addEventListener("click", function() {
-    document.getElementById("reset-confirm-modal").classList.add("hidden");
-    document.body.classList.remove("modal-open");
-  });
+  document
+    .getElementById("reset-confirm-btn")
+    .addEventListener("click", confirmReset);
+  document
+    .getElementById("reset-cancel-btn")
+    .addEventListener("click", function () {
+      document.getElementById("reset-confirm-modal").classList.add("hidden");
+      document.body.classList.remove("modal-open");
+    });
+  document
+    .getElementById("reset-cancel-close-btn")
+    .addEventListener("click", function () {
+      document.getElementById("reset-confirm-modal").classList.add("hidden");
+      document.body.classList.remove("modal-open");
+    });
 
   // Close reset modal when clicking outside content
-  document.getElementById("reset-confirm-modal").addEventListener("click", function(e) {
-    if (e.target === this) {
-      this.classList.add("hidden");
-      document.body.classList.remove("modal-open");
-    }
-  });
+  document
+    .getElementById("reset-confirm-modal")
+    .addEventListener("click", function (e) {
+      if (e.target === this) {
+        this.classList.add("hidden");
+        document.body.classList.remove("modal-open");
+      }
+    });
 
   // Filter and sort handlers
-  document.getElementById("account-filter").addEventListener("change", function(e) {
-    filters.account = e.target.value;
-    updateActiveAccountCard();
-    renderTransactions();
-  });
+  document
+    .getElementById("account-filter")
+    .addEventListener("change", function (e) {
+      filters.account = e.target.value;
+      updateActiveAccountCard();
+      renderTransactions();
+    });
 
-  document.getElementById("type-filter").addEventListener("change", function(e) {
-    filters.type = e.target.value;
-    renderTransactions();
-  });
+  document
+    .getElementById("type-filter")
+    .addEventListener("change", function (e) {
+      filters.type = e.target.value;
+      renderTransactions();
+    });
 
-  document.getElementById("sort-by").addEventListener("change", function(e) {
+  document.getElementById("sort-by").addEventListener("change", function (e) {
     sortOrder = e.target.value;
     renderTransactions();
   });
 
   // Account card filtering
-  document.querySelectorAll(".card[data-account]").forEach(card => {
-    card.addEventListener("click", function() {
+  document.querySelectorAll(".card[data-account]").forEach((card) => {
+    card.addEventListener("click", function () {
       const account = this.dataset.account;
       if (filters.account === account) {
         // If already filtered to this account, reset filter
@@ -1731,11 +2636,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Helper to update active card styling
   function updateActiveAccountCard() {
-    document.querySelectorAll(".card[data-account]").forEach(card => {
+    document.querySelectorAll(".card[data-account]").forEach((card) => {
       if (filters.account === "all") {
         card.classList.remove("active");
       } else {
-        card.classList.toggle("active", card.dataset.account === filters.account);
+        card.classList.toggle(
+          "active",
+          card.dataset.account === filters.account,
+        );
       }
     });
   }
