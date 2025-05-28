@@ -65,53 +65,59 @@ function loadData() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-    const savedData = JSON.parse(saved);
-    // Ensure backward compatibility with older data structure
-    data = {
-      balances: savedData.balances || { cu: 0, revolut: 0, cash: 0 },
-      transactions: savedData.transactions || [],
-      categories: savedData.categories || [
-        "Food & Dining",
-        "Shopping",
-        "Transportation",
-        "Bills & Utilities",
-        "Entertainment",
-        "Health & Fitness",
-        "Travel",
-        "Education",
-        "Personal Care",
-        "Gifts & Donations",
-        "Income",
-        "Other",
-      ],
-      budgets: savedData.budgets || {},
-      settings: savedData.settings || {
-        theme: "light",
-        accentColor: "#4a90e2",
-        pinnedTransactions: [],
-        recurringTransactions: [],
-        dashboard: {
-          widgets: {
-            totalBalance: true,
-            accounts: true,
-            recentTransactions: true,
-            upcomingBills: false,
-            spendingChart: false
-          },
-          defaultView: "transactions"
-        },
-        backup: {
-          googleDrive: {
-            connected: false,
-            lastBackup: null
-          }
-        },
-        recurring: {
-          autoCreate: false,
-          notifications: false
-        }
-      },
-    };
+     const savedData = JSON.parse(saved);
+     // Ensure backward compatibility with older data structure
+     data = {
+       balances: savedData.balances || { cu: 0, revolut: 0, cash: 0 },
+       transactions: savedData.transactions || [],
+       categories: savedData.categories || [
+         "Food & Dining",
+         "Shopping",
+         "Transportation",
+         "Bills & Utilities",
+         "Entertainment",
+         "Health & Fitness",
+         "Travel",
+         "Education",
+         "Personal Care",
+         "Gifts & Donations",
+         "Income",
+         "Other",
+       ],
+       budgets: savedData.budgets || {},
+       settings: savedData.settings || {},
+     };
+     
+     // Ensure all settings properties exist with defaults
+     if (!data.settings) data.settings = {};
+     if (!data.settings.theme) data.settings.theme = "light";
+     if (!data.settings.accentColor) data.settings.accentColor = "#4a90e2";
+     if (!data.settings.pinnedTransactions) data.settings.pinnedTransactions = [];
+     if (!data.settings.recurringTransactions) data.settings.recurringTransactions = [];
+     
+     // Ensure dashboard settings
+     if (!data.settings.dashboard) data.settings.dashboard = {};
+     if (!data.settings.dashboard.widgets) data.settings.dashboard.widgets = {
+       totalBalance: true,
+       accounts: true,
+       recentTransactions: true,
+       upcomingBills: false,
+       spendingChart: false
+     };
+     if (!data.settings.dashboard.defaultView) data.settings.dashboard.defaultView = "transactions";
+     
+     // Ensure backup settings
+     if (!data.settings.backup) data.settings.backup = {};
+     if (!data.settings.backup.googleDrive) data.settings.backup.googleDrive = {
+       connected: false,
+       lastBackup: null
+     };
+     
+     // Ensure recurring settings
+     if (!data.settings.recurring) data.settings.recurring = {
+       autoCreate: false,
+       notifications: false
+     };
     
     // Add accounts array if upgrading from previous version
     if (!savedData.accounts) {
@@ -1374,6 +1380,7 @@ function resetAllData() {
 }
 
 function confirmReset() {
+  // Reset to default data structure with proper initialization
   data = {
     balances: { cu: 0, revolut: 0, cash: 0 },
     transactions: [],
@@ -1845,28 +1852,7 @@ function adjustColor(hexColor, amount, lighten = false) {
 
 // Apply dashboard widget settings
 function applyDashboardWidgets() {
-  // Ensure dashboard and widgets objects exist
-  if (!data.settings.dashboard) {
-    data.settings.dashboard = {
-      widgets: {
-        totalBalance: true,
-        accounts: true,
-        recentTransactions: true,
-        upcomingBills: false,
-        spendingChart: false
-      },
-      defaultView: "transactions"
-    };
-  } else if (!data.settings.dashboard.widgets) {
-    data.settings.dashboard.widgets = {
-      totalBalance: true,
-      accounts: true,
-      recentTransactions: true,
-      upcomingBills: false,
-      spendingChart: false
-    };
-  }
-  
+  // Widget settings are guaranteed to exist thanks to loadData initialization
   const widgets = data.settings.dashboard.widgets;
   
   // Total balance widget
@@ -1928,23 +1914,11 @@ function initSettingsView() {
   
   // Recurring transaction toggle handlers
   document.getElementById("auto-create-recurring").addEventListener("change", function() {
-    if (!data.settings.recurring) {
-      data.settings.recurring = {
-        autoCreate: false,
-        notifications: false
-      };
-    }
     data.settings.recurring.autoCreate = this.checked;
     saveData();
   });
   
   document.getElementById("notify-recurring").addEventListener("change", function() {
-    if (!data.settings.recurring) {
-      data.settings.recurring = {
-        autoCreate: false,
-        notifications: false
-      };
-    }
     data.settings.recurring.notifications = this.checked;
     saveData();
   });
@@ -2012,27 +1986,7 @@ function initColorSelector() {
 
 // Initialize widget checkboxes
 function initWidgetCheckboxes() {
-  // Ensure dashboard and widgets objects exist
-  if (!data.settings.dashboard) {
-    data.settings.dashboard = {
-      widgets: {
-        totalBalance: true,
-        accounts: true,
-        recentTransactions: true,
-        upcomingBills: false,
-        spendingChart: false
-      },
-      defaultView: "transactions"
-    };
-  } else if (!data.settings.dashboard.widgets) {
-    data.settings.dashboard.widgets = {
-      totalBalance: true,
-      accounts: true,
-      recentTransactions: true,
-      upcomingBills: false,
-      spendingChart: false
-    };
-  }
+  // Widget settings are guaranteed to exist thanks to loadData initialization
   
   // Setup widget checkboxes
   document.getElementById('widget-total-balance').checked = data.settings.dashboard.widgets.totalBalance;
@@ -2075,21 +2029,7 @@ function initWidgetCheckboxes() {
 
 // Initialize default view selector
 function initDefaultViewSelector() {
-  // Ensure dashboard object exists
-  if (!data.settings.dashboard) {
-    data.settings.dashboard = {
-      widgets: {
-        totalBalance: true,
-        accounts: true,
-        recentTransactions: true,
-        upcomingBills: false,
-        spendingChart: false
-      },
-      defaultView: "transactions"
-    };
-  } else if (!data.settings.dashboard.defaultView) {
-    data.settings.dashboard.defaultView = "transactions";
-  }
+  // Dashboard settings are guaranteed to exist thanks to loadData initialization
   
   const defaultViewSelect = document.getElementById('default-view');
   defaultViewSelect.value = data.settings.dashboard.defaultView;
@@ -2217,6 +2157,8 @@ function initGoogleDriveBackup() {
   const authDiv = document.getElementById("google-drive-auth");
   const lastBackupInfo = document.getElementById("last-backup-info");
   
+  // Backup settings are guaranteed to exist thanks to loadData initialization
+  
   // Check if Google Drive is connected
   if (data.settings.backup.googleDrive.connected) {
     authDiv.classList.add("hidden");
@@ -2263,6 +2205,7 @@ function connectGoogleDrive() {
 
 // Backup data to Google Drive
 function backupToGoogleDrive() {
+  
   showUpdateNotification("Backing up data to Google Drive...");
   
   // Simulate backup process
@@ -2385,14 +2328,6 @@ function importData() {
 
 // Process recurring transactions
 function processRecurringTransactions() {
-  // Ensure recurring settings exist
-  if (!data.settings.recurring) {
-    data.settings.recurring = {
-      autoCreate: false,
-      notifications: false
-    };
-  }
-  
   // Only process if auto-create is enabled
   if (!data.settings.recurring.autoCreate) return;
   
@@ -2663,14 +2598,6 @@ function deleteRecurringTransaction(txId) {
 
 // Initialize recurring transaction settings
 function initRecurringSettings() {
-  // Ensure recurring settings object exists
-  if (!data.settings.recurring) {
-    data.settings.recurring = {
-      autoCreate: false,
-      notifications: false
-    };
-  }
-  
   // Set toggle values
   document.getElementById("auto-create-recurring").checked = data.settings.recurring.autoCreate;
   document.getElementById("notify-recurring").checked = data.settings.recurring.notifications;
