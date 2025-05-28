@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover" />
@@ -18,12 +18,30 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-pap6Mf+..." crossorigin="anonymous" referrerpolicy="no-referrer" />
         <link rel="stylesheet" href="style.css" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     </head>
     <body>
         <header>
             <h1><i class="fas fa-wallet"></i> Money Manager</h1>
-            <button id="reset-btn" class="reset-button"><i class="fas fa-sync"></i> Reset All Data</button>
+            <div class="header-actions">
+                <button id="theme-toggle" class="theme-button"><i class="fas fa-moon"></i></button>
+                <button id="reset-btn" class="reset-button"><i class="fas fa-sync"></i> Reset All Data</button>
+            </div>
         </header>
+        <nav class="bottom-nav">
+            <div class="nav-item active" data-view="transactions">
+                <i class="fas fa-exchange-alt"></i>
+                <span>Transactions</span>
+            </div>
+            <div class="nav-item" data-view="charts">
+                <i class="fas fa-chart-pie"></i>
+                <span>Charts</span>
+            </div>
+            <div class="nav-item" data-view="budgets">
+                <i class="fas fa-piggy-bank"></i>
+                <span>Budgets</span>
+            </div>
+        </nav>
 
         <!-- Total Balance -->
         <section class="total-balance card emphasized">
@@ -56,37 +74,80 @@
             </div>
         </section>
 
-        <!-- Transaction list -->
-        <section class="transactions">
-            <h2>Transactions</h2>
-            <div class="transaction-controls">
-                <div class="filter-controls">
-                    <span class="control-label">Filter:</span>
-                    <select id="account-filter">
-                        <option value="all">All Accounts</option>
-                        <option value="cu">Credit Union</option>
-                        <option value="revolut">Revolut</option>
-                        <option value="cash">Cash</option>
-                    </select>
-                    <select id="type-filter">
-                        <option value="all">All Types</option>
-                        <option value="expense">Expenses</option>
-                        <option value="income">Income</option>
-                    </select>
+        <div id="transactions-view">
+            <!-- Transaction list -->
+            <section class="transactions">
+                <h2>Transactions</h2>
+                <div class="search-container">
+                    <input type="text" id="search-input" placeholder="Search transactions..." />
+                    <i class="fas fa-search search-icon"></i>
                 </div>
-                <div class="sort-controls">
-                    <span class="control-label">Sort by:</span>
-                    <select id="sort-by">
-                        <option value="date-desc">Date (Newest)</option>
-                        <option value="date-asc">Date (Oldest)</option>
-                        <option value="amount-desc">Amount (High-Low)</option>
-                        <option value="amount-asc">Amount (Low-High)</option>
-                    </select>
+                <div class="transaction-controls">
+                    <div class="filter-controls">
+                        <span class="control-label">Filter:</span>
+                        <select id="account-filter">
+                            <option value="all">All Accounts</option>
+                            <option value="cu">Credit Union</option>
+                            <option value="revolut">Revolut</option>
+                            <option value="cash">Cash</option>
+                        </select>
+                        <select id="type-filter">
+                            <option value="all">All Types</option>
+                            <option value="expense">Expenses</option>
+                            <option value="income">Income</option>
+                        </select>
+                        <select id="date-range-filter">
+                            <option value="all">All Dates</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="year">This Year</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+                    <div id="custom-date-range" class="custom-date-range hidden">
+                        <input type="date" id="custom-start-date" />
+                        <span>to</span>
+                        <input type="date" id="custom-end-date" />
+                    </div>
+                    <div class="sort-controls">
+                        <span class="control-label">Sort by:</span>
+                        <select id="sort-by">
+                            <option value="date-desc">Date (Newest)</option>
+                            <option value="date-asc">Date (Oldest)</option>
+                            <option value="amount-desc">Amount (High-Low)</option>
+                            <option value="amount-asc">Amount (Low-High)</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
-            <ul id="tx-list"></ul>
-            <button id="add-btn"><i class="fas fa-plus"></i> Add Transaction</button>
-        </section>
+                <ul id="tx-list"></ul>
+                <button id="add-btn"><i class="fas fa-plus"></i> Add Transaction</button>
+            </section>
+        </div>
+
+        <div id="charts-view" class="hidden">
+            <section class="charts-container">
+                <h2>Financial Overview</h2>
+                <div class="chart-card">
+                    <canvas id="income-expense-chart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <canvas id="category-chart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <canvas id="account-balance-chart"></canvas>
+                </div>
+            </section>
+        </div>
+
+        <div id="budgets-view" class="hidden">
+            <section class="budgets-container">
+                <h2>Monthly Budgets</h2>
+                <div id="budget-items">
+                    <!-- Budget items will be added here dynamically -->
+                </div>
+            </section>
+        </div>
 
         <!-- Modal form -->
         <div id="tx-modal" class="modal hidden">
@@ -112,12 +173,48 @@
                     </select>
                 </label>
                 <label>
+                    Category
+                    <select id="tx-category">
+                        <option value="Food & Dining">Food & Dining</option>
+                        <option value="Shopping">Shopping</option>
+                        <option value="Transportation">Transportation</option>
+                        <option value="Bills & Utilities">Bills & Utilities</option>
+                        <option value="Entertainment">Entertainment</option>
+                        <option value="Health & Fitness">Health & Fitness</option>
+                        <option value="Travel">Travel</option>
+                        <option value="Education">Education</option>
+                        <option value="Personal Care">Personal Care</option>
+                        <option value="Gifts & Donations">Gifts & Donations</option>
+                        <option value="Income">Income</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </label>
+                <label>
                     Description
                     <input type="text" id="tx-desc" placeholder="e.g. Coffee" />
                 </label>
                 <label>
                     Date
                     <input type="date" id="tx-date" required />
+                </label>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="tx-recurring" />
+                        Recurring Transaction
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="tx-pinned" />
+                        Pin to Top
+                    </label>
+                </div>
+                <label>
+                    Notes
+                    <textarea id="tx-notes" placeholder="Add any notes here..."></textarea>
+                </label>
+                <label>
+                    Attachment
+                    <input type="file" id="tx-attachment" accept="image/*" />
+                    <div id="tx-attachments-preview" class="attachments-preview"></div>
                 </label>
                 <div class="form-actions">
                     <button type="submit">Save</button>
@@ -134,6 +231,7 @@
                 </div>
                 <div id="tx-info" class="tx-details"></div>
                 <div class="modal-actions">
+                    <button id="pin-tx-btn" class="pin-btn"><i class="fas fa-thumbtack"></i> Pin</button>
                     <button id="edit-tx-btn" class="edit-btn"><i class="fas fa-edit"></i> Edit</button>
                     <button id="delete-tx-btn" class="delete-btn"><i class="fas fa-trash"></i> Delete</button>
                 </div>
@@ -177,12 +275,48 @@
                     </select>
                 </label>
                 <label>
+                    Category
+                    <select id="edit-tx-category">
+                        <option value="Food & Dining">Food & Dining</option>
+                        <option value="Shopping">Shopping</option>
+                        <option value="Transportation">Transportation</option>
+                        <option value="Bills & Utilities">Bills & Utilities</option>
+                        <option value="Entertainment">Entertainment</option>
+                        <option value="Health & Fitness">Health & Fitness</option>
+                        <option value="Travel">Travel</option>
+                        <option value="Education">Education</option>
+                        <option value="Personal Care">Personal Care</option>
+                        <option value="Gifts & Donations">Gifts & Donations</option>
+                        <option value="Income">Income</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </label>
+                <label>
                     Description
                     <input type="text" id="edit-tx-desc" placeholder="e.g. Coffee" />
                 </label>
                 <label>
                     Date
                     <input type="date" id="edit-tx-date" required />
+                </label>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="edit-tx-recurring" />
+                        Recurring Transaction
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="edit-tx-pinned" />
+                        Pin to Top
+                    </label>
+                </div>
+                <label>
+                    Notes
+                    <textarea id="edit-tx-notes" placeholder="Add any notes here..."></textarea>
+                </label>
+                <label>
+                    Attachment
+                    <input type="file" id="edit-tx-attachment" accept="image/*" />
+                    <div id="edit-tx-attachments-preview" class="attachments-preview"></div>
                 </label>
                 <div class="form-actions">
                     <button type="submit">Save Changes</button>
@@ -194,8 +328,8 @@
         <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
         <script>
             // Ensure the transaction modal is hidden on page load
-            document.addEventListener('DOMContentLoaded', function() {
-                document.getElementById('transaction-modal').classList.add('hidden');
+            document.addEventListener("DOMContentLoaded", function () {
+                document.getElementById("transaction-modal").classList.add("hidden");
             });
         </script>
         <script src="app.js"></script>

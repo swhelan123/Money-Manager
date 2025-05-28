@@ -15,14 +15,34 @@
     /* Transaction type colors */
     --income-color: #4caf50; /* Income - Green */
     --expense-color: #f44336; /* Expense - Red */
+
+    /* Light mode (default) */
+    --bg-color: var(--light);
+    --text-color: var(--dark);
+    --card-bg: white;
+    --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --border-color: #eee;
+    --input-bg: white;
+    --input-border: #ccc;
+}
+
+/* Dark mode */
+html[data-theme="dark"] {
+    --bg-color: #1a1a1a;
+    --text-color: #f0f0f0;
+    --card-bg: #2a2a2a;
+    --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --border-color: #444;
+    --input-bg: #333;
+    --input-border: #555;
 }
 .modal {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
-    height: 100vh;
-    height: calc(100vh + var(--safe-area-inset-top));
+    height: 100vh; 
+    height: calc(100vh + var(--safe-area-inset-top) + var(--safe-area-inset-bottom));
     background: rgba(0, 0, 0, 0.5);
     display: flex;
     justify-content: center;
@@ -31,12 +51,152 @@
     transition: opacity 0.2s ease;
     padding-top: var(--safe-area-inset-top);
     margin-top: calc(-1 * var(--safe-area-inset-top));
+    margin-bottom: calc(-1 * var(--safe-area-inset-bottom));
+    overflow: hidden;
 }
 
-.modal.hidden {
+.hidden {
     display: none !important;
     opacity: 0;
     pointer-events: none;
+}
+
+/* Bottom Navigation */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: var(--card-bg);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    padding-bottom: var(--safe-area-inset-bottom);
+}
+
+.nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    flex: 1;
+    color: var(--text-color);
+    opacity: 0.7;
+    transition: opacity 0.2s, color 0.2s;
+    cursor: pointer;
+}
+
+.nav-item.active {
+    color: var(--primary);
+    opacity: 1;
+}
+
+.nav-item i {
+    font-size: 1.2rem;
+    margin-bottom: 0.2rem;
+}
+
+.nav-item span {
+    font-size: 0.7rem;
+}
+
+/* Theme toggle button */
+.theme-button {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    margin-right: 1rem;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+
+/* Charts view */
+.charts-container {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.chart-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 1rem;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 1rem;
+}
+
+/* Budgets view */
+.budgets-container {
+    padding: 1rem;
+}
+
+#budget-items {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.budget-item {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 1rem;
+    box-shadow: var(--card-shadow);
+}
+
+.budget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.8rem;
+}
+
+.budget-header h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.set-budget-btn {
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.budget-progress {
+    height: 10px;
+    background-color: #eee;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+html[data-theme="dark"] .budget-progress {
+    background-color: #444;
+}
+
+.progress-bar {
+    height: 100%;
+    border-radius: 5px;
+}
+
+.budget-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--text-color);
 }
 
 #transaction-modal .modal-content {
@@ -122,8 +282,73 @@
 
 .tx-details p {
     margin-bottom: 0.5rem;
-    border-bottom: 1px solid #f1f1f1;
+    border-bottom: 1px solid var(--border-color);
     padding-bottom: 0.5rem;
+}
+
+/* Attachment styles */
+.attachment-section {
+    margin-top: 1rem;
+}
+
+.attachment-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 0.5rem;
+}
+
+.attachment-item {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.attachment-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.attachments-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 0.5rem;
+}
+
+.attachment-preview {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+    border: 1px solid var(--border-color);
+}
+
+.attachment-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.remove-attachment {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
 }
 
 .modal-actions,
@@ -198,7 +423,7 @@
 }
 
 .modal-content {
-    background: white;
+    background: var(--card-bg);
     padding: 2rem;
     border-radius: var(--radius);
     width: 90%;
@@ -231,8 +456,8 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--light);
-    color: var(--dark);
+    background: var(--bg-color);
+    color: var(--text-color);
     line-height: 1.4;
     min-height: 100vh;
     min-height: -webkit-fill-available;
@@ -242,8 +467,20 @@ body {
     width: 100%;
     margin: 0;
     padding: 0;
-    padding-bottom: var(--safe-area-inset-bottom);
+    padding-bottom: calc(var(--safe-area-inset-bottom) + 60px); /* Space for bottom nav */
     touch-action: manipulation;
+    transition:
+        background-color 0.3s ease,
+        color 0.3s ease;
+    overflow-x: hidden;
+}
+
+/* Prevent body scrolling when modal is open */
+body.modal-open {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
 }
 
 header {
@@ -272,17 +509,18 @@ header {
 }
 
 .card {
-    background: white;
+    background: var(--card-bg);
     flex: 1;
     margin: 0.5rem;
     padding: 1.5rem;
     border-radius: var(--radius);
     display: flex;
     align-items: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--card-shadow);
     transition:
         transform 0.2s,
-        box-shadow 0.2s;
+        box-shadow 0.2s,
+        background-color 0.3s ease;
     cursor: pointer;
 }
 .card:hover {
@@ -332,13 +570,13 @@ header {
 
 .transactions {
     flex: 1;
-    background: white;
+    background: var(--card-bg);
     margin: 1rem;
     padding: 1.5rem;
     border-radius: var(--radius);
     display: flex;
     flex-direction: column;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--card-shadow);
 }
 
 /* Filter and sort controls */
@@ -350,7 +588,8 @@ header {
     gap: 0.5rem;
 }
 
-.filter-controls, .sort-controls {
+.filter-controls,
+.sort-controls {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -359,7 +598,8 @@ header {
     border-radius: var(--radius);
 }
 
-.filter-controls select, .sort-controls select {
+.filter-controls select,
+.sort-controls select {
     border: 1px solid #ddd;
     padding: 0.25rem 0.5rem;
     border-radius: var(--radius);
@@ -388,7 +628,7 @@ header {
     display: flex;
     justify-content: space-between;
     padding: 0.5rem 0;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border-color);
     padding-left: 0.5rem;
     cursor: pointer;
     transition: background-color 0.2s;
@@ -411,6 +651,75 @@ header {
     height: 8px;
     border-radius: 50%;
     margin: 0 6px 0 3px;
+}
+
+/* Category tag styling */
+.category-tag {
+    font-size: 0.7rem;
+    background-color: rgba(74, 144, 226, 0.1);
+    color: var(--primary);
+    padding: 0.1rem 0.4rem;
+    border-radius: 10px;
+    margin-left: 5px;
+    white-space: nowrap;
+}
+
+html[data-theme="dark"] .category-tag {
+    background-color: rgba(74, 144, 226, 0.2);
+}
+
+/* Recurring transaction icon */
+.recurring-icon {
+    color: var(--accent);
+    margin-left: 5px;
+    font-size: 0.8rem;
+}
+
+/* Pinned transaction styling */
+#tx-list li.pinned {
+    background-color: rgba(74, 144, 226, 0.05);
+    border-left: 3px solid var(--primary);
+    position: relative;
+}
+
+html[data-theme="dark"] #tx-list li.pinned {
+    background-color: rgba(74, 144, 226, 0.1);
+}
+
+/* Pin button */
+.pin-btn {
+    background: #f0f0f0;
+    color: var(--dark);
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pin-btn:hover {
+    background: #e0e0e0;
+}
+
+.pin-btn.active {
+    background: var(--primary);
+    color: white;
+}
+
+html[data-theme="dark"] .pin-btn {
+    background: #3a3a3a;
+    color: #e0e0e0;
+}
+
+html[data-theme="dark"] .pin-btn:hover {
+    background: #444;
+}
+
+html[data-theme="dark"] .pin-btn.active {
+    background: var(--primary);
 }
 
 #tx-list li span i {
@@ -465,16 +774,19 @@ header {
 }
 
 #edit-tx-form input,
-#edit-tx-form select {
+#edit-tx-form select,
+#edit-tx-form textarea {
     width: 100%;
     padding: 0.5rem;
     margin-top: 0.25rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--input-border);
     border-radius: var(--radius);
+    background-color: var(--input-bg);
+    color: var(--text-color);
 }
 
 #tx-form {
-    background: white;
+    background: var(--card-bg);
     padding: 2rem;
     border-radius: var(--radius);
     width: 90%;
@@ -488,12 +800,15 @@ header {
 }
 
 #tx-form input,
-#tx-form select {
+#tx-form select,
+#tx-form textarea {
     width: 100%;
     padding: 0.5rem;
     margin-top: 0.25rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--input-border);
     border-radius: var(--radius);
+    background-color: var(--input-bg);
+    color: var(--text-color);
 }
 
 .form-actions {
@@ -520,6 +835,7 @@ header {
 }
 
 /* Emphasized Total Balance Card */
+/* Total Balance Card */
 .total-balance.card.emphasized {
     background: var(--primary);
     color: white;
@@ -533,6 +849,11 @@ header {
     width: 90%;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s,
+        background-color 0.2s;
 }
 
 .total-balance.card.emphasized:hover {
