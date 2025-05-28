@@ -1162,6 +1162,7 @@ html[data-theme="dark"] .pin-btn.active {
     box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
 }
 
+/* Update notification */
 .update-notification {
     position: fixed;
     top: 20px;
@@ -1188,6 +1189,552 @@ html[data-theme="dark"] .pin-btn.active {
 
 .update-content i {
     font-size: 1.2rem;
+}
+
+/* Animations */
+@keyframes slide-in-top {
+    0% {
+        transform: translate(-50%, -100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes fade-out {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+/* Bill Calendar */
+.bill-calendar-container {
+    padding: 1.5rem;
+    margin: 1rem;
+    border-radius: var(--radius);
+    background: var(--card-bg);
+    box-shadow: var(--card-shadow);
+}
+
+.bill-calendar-container h2 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: var(--text-color);
+}
+
+.bill-calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.calendar-nav-btn {
+    background: var(--primary-light);
+    color: var(--primary-color);
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.calendar-nav-btn:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+#calendar-month {
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+#calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-weight: 500;
+    padding: 0.5rem 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.calendar-day {
+    min-height: 70px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 5px;
+    position: relative;
+    background: var(--bg-color);
+}
+
+.calendar-day.empty {
+    background: transparent;
+    border: none;
+}
+
+.calendar-day.today {
+    border-color: var(--primary-color);
+    background-color: var(--primary-light);
+}
+
+.date-number {
+    font-size: 0.9rem;
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: var(--card-bg);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-day.today .date-number {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.day-bills {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.bill-item {
+    background: var(--card-bg);
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bill-item:hover {
+    background: var(--primary-light);
+}
+
+.bill-amount {
+    font-weight: 500;
+    margin-right: 3px;
+}
+
+.bill-name {
+    color: var(--text-muted);
+}
+
+.bill-calendar-footer {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: center;
+}
+
+.calendar-day.has-bills {
+    background-color: rgba(74, 144, 226, 0.05);
+}
+
+.bill-status {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+
+.bill-status.paid {
+    background-color: var(--income-color);
+    color: white;
+}
+
+.bill-status.unpaid {
+    background-color: var(--expense-color);
+    color: white;
+}
+
+/* Category Management */
+.category-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    margin-bottom: 0.5rem;
+}
+
+.category-name {
+    font-weight: 500;
+}
+
+.delete-category-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.delete-category-btn:hover {
+    color: var(--expense-color);
+}
+
+.add-category-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.add-category-form input {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+}
+
+/* Recurring Transactions */
+.recurring-tx-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    margin-bottom: 0.75rem;
+}
+
+.recurring-tx-name {
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+}
+
+.recurring-tx-info, .recurring-tx-next {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.recurring-tx-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.toggle-recurring-btn {
+    background: transparent;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+.toggle-recurring-btn.active {
+    color: var(--primary-color);
+}
+
+.edit-recurring-btn, .delete-recurring-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: color 0.2s ease;
+}
+
+.edit-recurring-btn:hover {
+    color: var(--primary-color);
+}
+
+.delete-recurring-btn:hover {
+    color: var(--expense-color);
+}
+
+/* Transaction Tags */
+.tx-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.tx-tag {
+    background-color: var(--primary-light);
+    color: var(--primary-color);
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+}
+
+/* Settings view */
+.settings-container {
+    padding: 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.settings-group {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+    box-shadow: var(--card-shadow);
+}
+
+.settings-group h3 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+    color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.setting-item {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.setting-item:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.setting-item label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+}
+
+.setting-description {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+.theme-selector, .color-selector {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.theme-option {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.theme-option:hover, .theme-option.active {
+    background: var(--primary-light);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.color-option {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.color-option:hover, .color-option.active {
+    transform: scale(1.1);
+    border-color: var(--text-color);
+}
+
+.widget-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.widget-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.widget-option input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+}
+
+.backup-controls {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.primary-btn, .secondary-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    transition: background-color 0.2s ease;
+}
+
+.primary-btn:hover {
+    background: var(--primary-dark);
+}
+
+.secondary-btn {
+    background: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.secondary-btn:hover {
+    background: var(--bg-color);
+}
+
+#google-drive-auth, #google-drive-connected {
+    margin-top: 0.5rem;
+}
+
+#last-backup-info {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+.tags-container {
+    margin-top: 0.5rem;
+}
+
+#tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.tag-item {
+    background: var(--primary-light);
+    color: var(--primary-color);
+    padding: 0.3rem 0.6rem;
+    border-radius: 1rem;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.tag-item .remove-tag {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.tag-item .remove-tag:hover {
+    opacity: 1;
+}
+
+.add-tag-form {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.add-tag-form input {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background-color: var(--input-bg);
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 3.5rem;
+    height: 1.75rem;
+}
+
+.toggle-input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border-color);
+    border-radius: 1.75rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.toggle-label:before {
+    content: "";
+    position: absolute;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    background-color: white;
+    bottom: 0.25rem;
+    left: 0.25rem;
+    transition: transform 0.2s ease;
+}
+
+.toggle-input:checked + .toggle-label {
+    background-color: var(--primary-color);
+}
+
+.toggle-input:checked + .toggle-label:before {
+    transform: translateX(1.75rem);
+}
+
+.danger-zone {
+    background-color: rgba(244, 67, 54, 0.1);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.danger-zone h4 {
+    color: #f44336;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+}
+
+#storage-usage, #app-version {
+    font-family: monospace;
 }
 
 /* Update notification */

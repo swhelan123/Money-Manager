@@ -1,10 +1,10 @@
 // ---------- Data layer ----------
 const STORAGE_KEY = "money-manager-data";
-const APP_VERSION = "0.4.1";
+const APP_VERSION = "0.5.0";
 let currentMap = null;
 let modalInitialized = false;
 let currentTxIndex = -1;
-let currentView = "transactions"; // Can be: transactions, charts, budgets
+let currentView = "transactions"; // Can be: transactions, charts, budgets, settings
 let currentEditingAccountId = null;
 let data = {
   balances: { cu: 0, revolut: 0, cash: 0 },
@@ -27,13 +27,38 @@ let data = {
     "Gifts",
     "Other",
   ],
+  tags: [],
   budgets: {},
   settings: {
     theme: "light",
+    accentColor: "#4a90e2",
     pinnedTransactions: [],
     recurringTransactions: [],
-    version: "0.3.5"
+    version: "0.3.5",
+    dashboard: {
+      widgets: {
+        totalBalance: true,
+        accounts: true,
+        recentTransactions: true,
+        upcomingBills: false,
+        spendingChart: false
+      },
+      defaultView: "transactions"
+    },
+    backup: {
+      googleDrive: {
+        connected: false,
+        lastBackup: null
+      }
+    },
+    recurring: {
+      autoCreate: false,
+      notifications: false
+    }
   },
+  bills: [
+    // Default empty bills array
+  ]
 };
 
 function loadData() {
@@ -157,10 +182,10 @@ function loadData() {
     saveData();
   }
 
-  // Apply theme from settings
-  applyTheme(data.settings.theme);
+  // Apply theme and other settings
+  applyAppSettings();
 
-  // Store current version for update checking
+  // Store current app version
   localStorage.setItem("app-version", APP_VERSION);
 }
 function saveData() {
@@ -170,6 +195,12 @@ function saveData() {
     console.error("Error saving data:", error);
     showUpdateNotification("Error saving data. Local storage may be full.");
   }
+}
+
+// Helper function to get today's date in YYYY-MM-DD format
+function getTodayString() {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
 }
 
 // ---------- UI rendering ----------
@@ -204,6 +235,16 @@ function renderAccountCards() {
       { id: "revolut", name: "Revolut", icon: "credit-card", color: "#50c878" },
       { id: "cash", name: "Cash", icon: "money-bill-wave", color: "#ff9800" }
     ];
+  }
+  
+  // Ensure tags array exists
+  if (!data.tags || !Array.isArray(data.tags)) {
+    data.tags = [];
+  }
+  
+  // Ensure bills array exists
+  if (!data.bills || !Array.isArray(data.bills)) {
+    data.bills = [];
   }
   
   data.accounts.forEach(account => {
@@ -801,20 +842,25 @@ function renderTransactions() {
 
     // Add recurring indicator if applicable
     const recurringIcon = tx.isRecurring
-      ? `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>`
-      : "";
+        ? `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>`
+        : "";
+  
+    // Render tags if any
+    const tagsList = tx.tags && tx.tags.length > 0 
+        ? `<div class="tx-tags">${tx.tags.map(tag => `<span class="tx-tag">${tag}</span>`).join('')}</div>` 
+        : '';
 
-    li.innerHTML = `
-      <span>
-        <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}"
-           style="color: var(--${tx.type}-color);"></i>
-        <span class="account-dot" style="background-color: ${getAccountColor(tx.account)};"></span>
-        ${tx.description || "(no desc)"}
-        ${recurringIcon}
-        ${tx.category ? `<span class="category-tag">${tx.category}</span>` : ""}
-      </span>
-      <span>${formatAmt(tx.amount)}</span>
-    `;
+      li.innerHTML = `
+        <span>
+          <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}"
+             style="color: var(--${tx.type}-color);"></i>
+          <span class="account-dot" style="background-color: ${getAccountColor(tx.account)};"></span>
+          ${tx.description || "(no desc)"}
+          ${recurringIcon}
+          ${tagsList}
+        </span>
+        <span>${formatAmt(tx.amount)}</span>
+      `;
     li.addEventListener("click", function () {
       const index = data.transactions.findIndex(
         (t) =>
@@ -933,6 +979,7 @@ document.getElementById("add-btn").onclick = () =>
 document.getElementById("cancel-btn").onclick = () =>
   modal.classList.add("hidden");
 
+// Initialize the transaction form
 document.getElementById("tx-form").addEventListener("submit", function (e) {
   e.preventDefault();
   const amt = parseFloat(document.getElementById("tx-amount").value);
@@ -944,6 +991,14 @@ document.getElementById("tx-form").addEventListener("submit", function (e) {
   const isRecurring = document.getElementById("tx-recurring").checked;
   const isPinned = document.getElementById("tx-pinned").checked;
   const notes = document.getElementById("tx-notes").value;
+  
+  // Get tags if they exist
+  let tags = [];
+  const tagsInput = document.getElementById("tx-tags");
+  if (tagsInput && tagsInput.value) {
+    tags = tagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
+  }
+  
   const fileInput = document.getElementById("tx-attachment");
 
   // Generate a unique ID for the transaction
@@ -1258,6 +1313,7 @@ function saveEditedTransaction() {
     isRecurring,
     isPinned,
     notes,
+    tags,
     location: oldTx.location, // Preserve original location data
     attachments: remainingAttachments,
   };
@@ -1319,12 +1375,35 @@ function confirmReset() {
       "Gifts",
       "Other",
     ],
+    tags: [],
+    bills: [],
     budgets: {},
     settings: {
       theme: "light",
+      accentColor: "#4a90e2",
       pinnedTransactions: [],
       recurringTransactions: [],
-      version: APP_VERSION
+      version: APP_VERSION,
+      dashboard: {
+        widgets: {
+          totalBalance: true,
+          accounts: true,
+          recentTransactions: true,
+          upcomingBills: false,
+          spendingChart: false
+        },
+        defaultView: "transactions"
+      },
+      backup: {
+        googleDrive: {
+          connected: false,
+          lastBackup: null
+        }
+      },
+      recurring: {
+        autoCreate: false,
+        notifications: false
+      }
     },
   };
   saveData();
@@ -1656,16 +1735,1441 @@ function processAttachments(files) {
 
 // Apply theme (light/dark)
 function applyTheme(theme) {
-  document.documentElement.setAttribute("data-theme", theme);
+  if (theme === 'system') {
+    // Check system preference
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+    
+    // Listen for changes in system preference
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+      if (data.settings.theme === 'system') {
+        document.documentElement.setAttribute("data-theme", e.matches ? "dark" : "light");
+      }
+    });
+  } else {
+    document.documentElement.setAttribute("data-theme", theme);
+  }
+  
   data.settings.theme = theme;
-  saveData();
 }
 
-// Toggle theme
 function toggleTheme() {
   const currentTheme = data.settings.theme || "light";
-  const newTheme = currentTheme === "light" ? "dark" : "light";
+  let newTheme;
+  
+  switch (currentTheme) {
+    case "light":
+      newTheme = "dark";
+      break;
+    case "dark":
+      newTheme = "system";
+      break;
+    default:
+      newTheme = "light";
+  }
+  
   applyTheme(newTheme);
+  saveData();
+  
+  // Update theme buttons in settings if they exist
+  updateThemeButtons();
+}
+
+// Apply all app settings
+function applyAppSettings() {
+  // Apply theme
+  applyTheme(data.settings.theme || "light");
+  
+  // Apply accent color
+  document.documentElement.style.setProperty('--primary-color', data.settings.accentColor || '#4a90e2');
+  document.documentElement.style.setProperty('--primary-dark', adjustColor(data.settings.accentColor || '#4a90e2', -20));
+  document.documentElement.style.setProperty('--primary-light', adjustColor(data.settings.accentColor || '#4a90e2', 40, true));
+  
+  // Apply dashboard widgets
+  applyDashboardWidgets();
+  
+  // Update app version display
+  const versionElement = document.getElementById("app-version");
+  if (versionElement) {
+    versionElement.textContent = APP_VERSION;
+  }
+  
+  // Calculate storage usage
+  calculateStorageUsage();
+}
+
+// Helper function to adjust color brightness
+function adjustColor(hexColor, amount, lighten = false) {
+  // Convert hex to RGB
+  let r = parseInt(hexColor.substring(1,3), 16);
+  let g = parseInt(hexColor.substring(3,5), 16);
+  let b = parseInt(hexColor.substring(5,7), 16);
+
+  // Adjust brightness
+  if (lighten) {
+    r = Math.min(255, r + amount);
+    g = Math.min(255, g + amount);
+    b = Math.min(255, b + amount);
+  } else {
+    r = Math.max(0, r + amount);
+    g = Math.max(0, g + amount);
+    b = Math.max(0, b + amount);
+  }
+  
+  // Convert back to hex
+  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+// Apply dashboard widget settings
+function applyDashboardWidgets() {
+  const widgets = data.settings.dashboard?.widgets;
+  if (!widgets) return;
+  
+  // Total balance widget
+  const totalBalanceWidget = document.querySelector(".total-balance.card");
+  if (totalBalanceWidget) {
+    totalBalanceWidget.style.display = widgets.totalBalance ? "block" : "none";
+  }
+  
+  // Accounts widget
+  const accountsSection = document.querySelector(".balances");
+  if (accountsSection) {
+    accountsSection.style.display = widgets.accounts ? "flex" : "none";
+  }
+  
+  // Recent transactions widget (main transaction list)
+  // This is always shown on the transactions view
+  
+  // Set default view on page load
+  if (data.settings.dashboard.defaultView && currentView === "transactions") {
+    // Only switch if we're on the initial transactions view
+    switchView(data.settings.dashboard.defaultView);
+  }
+}
+
+// Initialize the settings view
+function initSettingsView() {
+  // Set app version
+  document.getElementById("app-version").textContent = APP_VERSION;
+  
+  // Calculate storage usage
+  calculateStorageUsage();
+  
+  // Initialize theme buttons
+  updateThemeButtons();
+  
+  // Initialize accent color selector
+  initColorSelector();
+  
+  // Initialize widget checkboxes
+  initWidgetCheckboxes();
+  
+  // Initialize default view selector
+  initDefaultViewSelector();
+  
+  // Initialize Google Drive functionality
+  initGoogleDriveBackup();
+  
+  // Initialize local backup buttons
+  initLocalBackupButtons();
+  
+  // Initialize tags list
+  renderTagsList();
+  
+  // Initialize recurring transaction settings
+  initRecurringSettings();
+  
+  // Add tag button event listener
+  document.getElementById("add-tag-btn").addEventListener("click", addNewTag);
+  
+  // Recurring transaction toggle handlers
+  document.getElementById("auto-create-recurring").addEventListener("change", function() {
+    data.settings.recurring.autoCreate = this.checked;
+    saveData();
+  });
+  
+  document.getElementById("notify-recurring").addEventListener("change", function() {
+    data.settings.recurring.notifications = this.checked;
+    saveData();
+  });
+  
+  // Manage recurring transactions button
+  document.getElementById("manage-recurring-btn").addEventListener("click", function() {
+    showRecurringTransactionsModal();
+  });
+    
+  // Initialize bill calendar
+  document.getElementById("manage-categories-btn").addEventListener("click", function() {
+    showCategoriesModal();
+  });
+}
+
+// Update theme buttons based on current theme
+function updateThemeButtons() {
+  const themeButtons = document.querySelectorAll('.theme-option');
+  themeButtons.forEach(button => {
+    button.classList.remove('active');
+    if (button.getAttribute('data-theme') === data.settings.theme) {
+      button.classList.add('active');
+    }
+    
+    // Add click handler
+    button.addEventListener('click', function() {
+      const theme = this.getAttribute('data-theme');
+      applyTheme(theme);
+      updateThemeButtons();
+      saveData();
+    });
+  });
+}
+
+// Initialize accent color selector
+function initColorSelector() {
+  const colorButtons = document.querySelectorAll('.color-selector .color-option');
+  colorButtons.forEach(button => {
+    button.classList.remove('active');
+    if (button.getAttribute('data-color') === data.settings.accentColor) {
+      button.classList.add('active');
+    }
+    
+    // Add click handler
+    button.addEventListener('click', function() {
+      const color = this.getAttribute('data-color');
+      data.settings.accentColor = color;
+      
+      // Update active state
+      document.querySelectorAll('.color-selector .color-option').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      this.classList.add('active');
+      
+      // Apply the color
+      document.documentElement.style.setProperty('--primary-color', color);
+      document.documentElement.style.setProperty('--primary-dark', adjustColor(color, -20));
+      document.documentElement.style.setProperty('--primary-light', adjustColor(color, 40, true));
+      
+      saveData();
+      showUpdateNotification("Accent color updated");
+    });
+  });
+}
+
+// Initialize widget checkboxes
+function initWidgetCheckboxes() {
+  // Setup widget checkboxes
+  document.getElementById('widget-total-balance').checked = data.settings.dashboard.widgets.totalBalance;
+  document.getElementById('widget-accounts').checked = data.settings.dashboard.widgets.accounts;
+  document.getElementById('widget-recent-transactions').checked = data.settings.dashboard.widgets.recentTransactions;
+  document.getElementById('widget-upcoming-bills').checked = data.settings.dashboard.widgets.upcomingBills;
+  document.getElementById('widget-spending-chart').checked = data.settings.dashboard.widgets.spendingChart;
+  
+  // Add event listeners
+  document.getElementById('widget-total-balance').addEventListener('change', function() {
+    data.settings.dashboard.widgets.totalBalance = this.checked;
+    saveData();
+    applyDashboardWidgets();
+  });
+  
+  document.getElementById('widget-accounts').addEventListener('change', function() {
+    data.settings.dashboard.widgets.accounts = this.checked;
+    saveData();
+    applyDashboardWidgets();
+  });
+  
+  document.getElementById('widget-recent-transactions').addEventListener('change', function() {
+    data.settings.dashboard.widgets.recentTransactions = this.checked;
+    saveData();
+    applyDashboardWidgets();
+  });
+  
+  document.getElementById('widget-upcoming-bills').addEventListener('change', function() {
+    data.settings.dashboard.widgets.upcomingBills = this.checked;
+    saveData();
+    applyDashboardWidgets();
+  });
+  
+  document.getElementById('widget-spending-chart').addEventListener('change', function() {
+    data.settings.dashboard.widgets.spendingChart = this.checked;
+    saveData();
+    applyDashboardWidgets();
+  });
+}
+
+// Initialize default view selector
+function initDefaultViewSelector() {
+  const defaultViewSelect = document.getElementById('default-view');
+  defaultViewSelect.value = data.settings.dashboard.defaultView || 'transactions';
+  
+  defaultViewSelect.addEventListener('change', function() {
+    data.settings.dashboard.defaultView = this.value;
+    saveData();
+  });
+}
+
+// Calculate and display storage usage
+function calculateStorageUsage() {
+  const storageUsage = document.getElementById('storage-usage');
+  if (!storageUsage) return;
+  
+  try {
+    const dataSize = new Blob([JSON.stringify(data)]).size;
+    const formattedSize = formatFileSize(dataSize);
+    storageUsage.textContent = formattedSize;
+  } catch (error) {
+    storageUsage.textContent = 'Unable to calculate';
+  }
+}
+
+// Format file size
+function formatFileSize(bytes) {
+  if (bytes < 1024) {
+    return bytes + ' bytes';
+  } else if (bytes < 1024 * 1024) {
+    return (bytes / 1024).toFixed(1) + ' KB';
+  } else {
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+}
+
+// Render the tags list in settings
+function renderTagsList() {
+  const tagsListEl = document.getElementById("tags-list");
+  if (!tagsListEl) return;
+  
+  tagsListEl.innerHTML = '';
+  
+  if (!data.tags || data.tags.length === 0) {
+    tagsListEl.innerHTML = '<span class="text-muted">No tags created yet.</span>';
+    return;
+  }
+  
+  data.tags.forEach(tag => {
+    const tagElement = document.createElement("div");
+    tagElement.className = "tag-item";
+    tagElement.innerHTML = `
+      ${tag}
+      <span class="remove-tag" data-tag="${tag}"><i class="fas fa-times"></i></span>
+    `;
+    
+    tagsListEl.appendChild(tagElement);
+  });
+  
+  // Add event listeners to remove buttons
+  document.querySelectorAll(".remove-tag").forEach(btn => {
+    btn.addEventListener("click", function() {
+      const tag = this.getAttribute("data-tag");
+      removeTag(tag);
+    });
+  });
+}
+
+// Add a new tag
+function addNewTag() {
+  const tagInput = document.getElementById("new-tag-input");
+  const tag = tagInput.value.trim();
+  
+  if (!tag) {
+    tagInput.classList.add("input-error");
+    setTimeout(() => {
+      tagInput.classList.remove("input-error");
+    }, 2000);
+    return;
+  }
+  
+  // Check if tag already exists
+  if (data.tags.includes(tag)) {
+    showUpdateNotification("This tag already exists");
+    tagInput.value = "";
+    return;
+  }
+  
+  // Add the tag
+  data.tags.push(tag);
+  saveData();
+  renderTagsList();
+  
+  // Clear input
+  tagInput.value = "";
+  showUpdateNotification("Tag added successfully");
+}
+
+// Remove a tag
+function removeTag(tag) {
+  // Remove tag from list
+  data.tags = data.tags.filter(t => t !== tag);
+  
+  // Remove tag from all transactions
+  data.transactions.forEach(tx => {
+    if (tx.tags && tx.tags.includes(tag)) {
+      tx.tags = tx.tags.filter(t => t !== tag);
+    }
+  });
+  
+  saveData();
+  renderTagsList();
+  renderTransactions(); // Refresh transactions to remove the deleted tag
+  showUpdateNotification("Tag removed successfully");
+}
+
+// Initialize Google Drive backup
+function initGoogleDriveBackup() {
+  const authBtn = document.getElementById("google-auth-btn");
+  const connectedDiv = document.getElementById("google-drive-connected");
+  const authDiv = document.getElementById("google-drive-auth");
+  const lastBackupInfo = document.getElementById("last-backup-info");
+  
+  // Check if Google Drive is connected
+  if (data.settings.backup.googleDrive.connected) {
+    authDiv.classList.add("hidden");
+    connectedDiv.classList.remove("hidden");
+    
+    // Show last backup time if available
+    if (data.settings.backup.googleDrive.lastBackup) {
+      const backupDate = new Date(data.settings.backup.googleDrive.lastBackup);
+      lastBackupInfo.textContent = `Last backup: ${backupDate.toLocaleString()}`;
+    } else {
+      lastBackupInfo.textContent = "Last backup: Never";
+    }
+  } else {
+    authDiv.classList.remove("hidden");
+    connectedDiv.classList.add("hidden");
+  }
+  
+  // Add event listeners
+  authBtn.addEventListener("click", connectGoogleDrive);
+  document.getElementById("backup-now-btn").addEventListener("click", backupToGoogleDrive);
+  document.getElementById("restore-backup-btn").addEventListener("click", restoreFromGoogleDrive);
+  document.getElementById("disconnect-drive-btn").addEventListener("click", disconnectGoogleDrive);
+}
+
+// Connect to Google Drive
+function connectGoogleDrive() {
+  // In a real implementation, we would handle OAuth2 flow here
+  // For this demo, we'll simulate the connection
+  
+  showUpdateNotification("Connecting to Google Drive...");
+  
+  // Simulate API delay
+  setTimeout(() => {
+    data.settings.backup.googleDrive.connected = true;
+    saveData();
+    
+    // Update UI
+    document.getElementById("google-drive-auth").classList.add("hidden");
+    document.getElementById("google-drive-connected").classList.remove("hidden");
+    
+    showUpdateNotification("Connected to Google Drive successfully");
+  }, 1500);
+}
+
+// Backup data to Google Drive
+function backupToGoogleDrive() {
+  showUpdateNotification("Backing up data to Google Drive...");
+  
+  // Simulate backup process
+  setTimeout(() => {
+    // Update last backup time
+    data.settings.backup.googleDrive.lastBackup = new Date().toISOString();
+    saveData();
+    
+    // Update last backup info display
+    const backupDate = new Date(data.settings.backup.googleDrive.lastBackup);
+    document.getElementById("last-backup-info").textContent = 
+      `Last backup: ${backupDate.toLocaleString()}`;
+    
+    showUpdateNotification("Backup completed successfully");
+  }, 2000);
+}
+
+// Restore data from Google Drive
+function restoreFromGoogleDrive() {
+  if (!confirm("Are you sure you want to restore data from Google Drive? This will replace all current data.")) {
+    return;
+  }
+  
+  showUpdateNotification("Restoring data from Google Drive...");
+  
+  // Simulate restore process
+  setTimeout(() => {
+    // In a real implementation, we would fetch the backup data from Google Drive here
+    // For this demo, we'll just show a notification
+    
+    showUpdateNotification("Data restored successfully");
+    // After restoring, we would reload the page to apply the restored data
+  }, 2000);
+}
+
+// Disconnect Google Drive
+function disconnectGoogleDrive() {
+  if (!confirm("Are you sure you want to disconnect Google Drive? This will not delete your backups, but automatic backups will stop.")) {
+    return;
+  }
+  
+  // Update settings
+  data.settings.backup.googleDrive.connected = false;
+  saveData();
+  
+  // Update UI
+  document.getElementById("google-drive-auth").classList.remove("hidden");
+  document.getElementById("google-drive-connected").classList.add("hidden");
+  
+  showUpdateNotification("Disconnected from Google Drive");
+}
+
+// Initialize local backup buttons
+function initLocalBackupButtons() {
+  document.getElementById("export-data-btn").addEventListener("click", exportData);
+  document.getElementById("import-data-btn").addEventListener("click", importData);
+}
+
+// Export data to JSON file
+function exportData() {
+  // Create a JSON string from data
+  const jsonData = JSON.stringify(data, null, 2);
+  const blob = new Blob([jsonData], { type: "application/json" });
+  
+  // Create download link
+  const downloadLink = document.createElement("a");
+  downloadLink.href = URL.createObjectURL(blob);
+  downloadLink.download = `money-manager-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  
+  // Append to document, click, and remove
+  document.body.appendChild(downloadLink);
+  downloadLink.click();
+  document.body.removeChild(downloadLink);
+  
+  showUpdateNotification("Data exported successfully");
+}
+
+// Import data from JSON file
+function importData() {
+  // Create an input element
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = ".json";
+  
+  // Handle file selection
+  fileInput.addEventListener("change", function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const importedData = JSON.parse(e.target.result);
+        
+        // Validate imported data (basic check)
+        if (!importedData.balances || !importedData.transactions) {
+          throw new Error("Invalid data format");
+        }
+        
+        // Confirm import
+        if (confirm("Are you sure you want to import this data? This will replace all current data.")) {
+          data = importedData;
+          saveData();
+          showUpdateNotification("Data imported successfully. Reloading...");
+          
+          // Reload page to apply imported data
+          setTimeout(() => window.location.reload(), 1500);
+        }
+      } catch (error) {
+        showUpdateNotification("Error importing data: " + error.message);
+      }
+    };
+    
+    reader.readAsText(file);
+  });
+  
+  // Trigger file selection
+  fileInput.click();
+}
+
+// Process recurring transactions
+function processRecurringTransactions() {
+  // Only process if auto-create is enabled
+  if (!data.settings.recurring.autoCreate) return;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Reset time to start of day
+  const todayStr = today.toISOString().split('T')[0];
+  
+  // Check each recurring transaction
+  data.settings.recurringTransactions.forEach(recurringTx => {
+    if (!recurringTx.active) return;
+    
+    const lastCreated = recurringTx.lastCreated ? new Date(recurringTx.lastCreated) : null;
+    let shouldCreate = false;
+    
+    // Check if transaction should be created based on frequency
+    switch (recurringTx.frequency) {
+      case 'daily':
+        shouldCreate = !lastCreated || getDaysDifference(lastCreated, today) >= 1;
+        break;
+      case 'weekly':
+        shouldCreate = !lastCreated || getDaysDifference(lastCreated, today) >= 7;
+        break;
+      case 'biweekly':
+        shouldCreate = !lastCreated || getDaysDifference(lastCreated, today) >= 14;
+        break;
+      case 'monthly':
+        shouldCreate = !lastCreated || getMonthsDifference(lastCreated, today) >= 1;
+        break;
+      case 'quarterly':
+        shouldCreate = !lastCreated || getMonthsDifference(lastCreated, today) >= 3;
+        break;
+      case 'yearly':
+        shouldCreate = !lastCreated || getMonthsDifference(lastCreated, today) >= 12;
+        break;
+    }
+    
+    if (shouldCreate) {
+      // Create the transaction
+      const newTx = {
+        amount: recurringTx.amount,
+        account: recurringTx.account,
+        type: recurringTx.type,
+        description: recurringTx.description,
+        date: todayStr,
+        category: recurringTx.category,
+        isRecurring: true,
+        isPinned: false,
+        notes: `Auto-created recurring transaction: ${recurringTx.description}`,
+        tags: recurringTx.tags || [],
+        id: "tx-" + Math.random().toString(36).substr(2, 9)
+      };
+      
+      // Add transaction to data
+      data.transactions.push(newTx);
+      
+      // Update account balance
+      data.balances[newTx.account] += newTx.type === "expense" ? -newTx.amount : newTx.amount;
+      
+      // Update last created date
+      recurringTx.lastCreated = todayStr;
+      
+      // Notify user if enabled
+      if (data.settings.recurring.notifications) {
+        showUpdateNotification(`Created recurring ${recurringTx.type}: ${recurringTx.description}`);
+      }
+    }
+  });
+  
+  // Save changes
+  saveData();
+  renderTransactions();
+  renderBalances();
+}
+
+// Get days difference between two dates
+function getDaysDifference(date1, date2) {
+  const diffTime = Math.abs(date2 - date1);
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+}
+
+// Get months difference between two dates
+function getMonthsDifference(date1, date2) {
+  const months = (date2.getFullYear() - date1.getFullYear()) * 12;
+  return months + date2.getMonth() - date1.getMonth();
+}
+
+// Show recurring transactions management modal
+function showRecurringTransactionsModal() {
+  // Create modal HTML if it doesn't exist
+  if (!document.getElementById("recurring-tx-modal")) {
+    const modalHTML = `
+      <div id="recurring-tx-modal" class="modal hidden">
+        <div class="modal-content">
+          <button id="recurring-close-btn" class="close-btn" aria-label="Close">&times;</button>
+          <h3><i class="fas fa-sync"></i> Manage Recurring Transactions</h3>
+          <div id="recurring-tx-list">
+            <!-- Recurring transactions will be listed here -->
+          </div>
+          <div class="modal-actions">
+            <button id="add-recurring-btn" class="primary-btn"><i class="fas fa-plus"></i> Add Recurring Transaction</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Add event listeners
+    document.getElementById("recurring-close-btn").addEventListener("click", function() {
+      document.getElementById("recurring-tx-modal").classList.add("hidden");
+      document.body.classList.remove("modal-open");
+    });
+    
+    document.getElementById("add-recurring-btn").addEventListener("click", function() {
+      // Show transaction modal with recurring checked
+      document.getElementById("recurring-tx-modal").classList.add("hidden");
+      document.getElementById("tx-modal").classList.remove("hidden");
+      document.getElementById("tx-recurring").checked = true;
+    });
+  }
+  
+  // Render recurring transactions
+  renderRecurringTransactions();
+  
+  // Show the modal
+  document.getElementById("recurring-tx-modal").classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+// Render recurring transactions list
+function renderRecurringTransactions() {
+  const listElement = document.getElementById("recurring-tx-list");
+  if (!listElement) return;
+  
+  listElement.innerHTML = '';
+  
+  // Get recurring transactions
+  const recurringTxs = data.settings.recurringTransactions || [];
+  
+  if (recurringTxs.length === 0) {
+    listElement.innerHTML = '<p class="text-muted">No recurring transactions set up yet.</p>';
+    return;
+  }
+  
+  // Create list items
+  recurringTxs.forEach(tx => {
+    const txElement = document.createElement("div");
+    txElement.className = "recurring-tx-item";
+    txElement.innerHTML = `
+      <div class="recurring-tx-details">
+        <div class="recurring-tx-name">${tx.description}</div>
+        <div class="recurring-tx-info">
+          ${formatAmt(tx.amount)} • ${tx.frequency} • ${tx.account}
+        </div>
+        <div class="recurring-tx-next">
+          Next: ${getNextOccurrence(tx)}
+        </div>
+      </div>
+      <div class="recurring-tx-actions">
+        <button class="toggle-recurring-btn ${tx.active ? 'active' : ''}" data-id="${tx.id}">
+          <i class="fas fa-${tx.active ? 'toggle-on' : 'toggle-off'}"></i>
+        </button>
+        <button class="edit-recurring-btn" data-id="${tx.id}">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button class="delete-recurring-btn" data-id="${tx.id}">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    `;
+    
+    listElement.appendChild(txElement);
+  });
+  
+  // Add event listeners
+  document.querySelectorAll(".toggle-recurring-btn").forEach(btn => {
+    btn.addEventListener("click", function() {
+      const txId = this.getAttribute("data-id");
+      toggleRecurringTransaction(txId);
+    });
+  });
+  
+  document.querySelectorAll(".edit-recurring-btn").forEach(btn => {
+    btn.addEventListener("click", function() {
+      const txId = this.getAttribute("data-id");
+      editRecurringTransaction(txId);
+    });
+  });
+  
+  document.querySelectorAll(".delete-recurring-btn").forEach(btn => {
+    btn.addEventListener("click", function() {
+      const txId = this.getAttribute("data-id");
+      deleteRecurringTransaction(txId);
+    });
+  });
+}
+
+// Get next occurrence date for a recurring transaction
+function getNextOccurrence(tx) {
+  if (!tx.lastCreated) {
+    return "Today";
+  }
+  
+  const lastDate = new Date(tx.lastCreated);
+  const nextDate = new Date(lastDate);
+  
+  switch (tx.frequency) {
+    case 'daily':
+      nextDate.setDate(lastDate.getDate() + 1);
+      break;
+    case 'weekly':
+      nextDate.setDate(lastDate.getDate() + 7);
+      break;
+    case 'biweekly':
+      nextDate.setDate(lastDate.getDate() + 14);
+      break;
+    case 'monthly':
+      nextDate.setMonth(lastDate.getMonth() + 1);
+      break;
+    case 'quarterly':
+      nextDate.setMonth(lastDate.getMonth() + 3);
+      break;
+    case 'yearly':
+      nextDate.setFullYear(lastDate.getFullYear() + 1);
+      break;
+  }
+  
+  return nextDate.toLocaleDateString();
+}
+
+// Toggle a recurring transaction active status
+function toggleRecurringTransaction(txId) {
+  // Find the transaction
+  const tx = data.settings.recurringTransactions.find(t => t.id === txId);
+  if (!tx) return;
+  
+  // Toggle active status
+  tx.active = !tx.active;
+  
+  // Save and refresh
+  saveData();
+  renderRecurringTransactions();
+  
+  showUpdateNotification(`Recurring transaction ${tx.active ? 'activated' : 'deactivated'}`);
+}
+
+// Edit a recurring transaction
+function editRecurringTransaction(txId) {
+  // To be implemented - would open a modal with the recurring transaction details
+  showUpdateNotification("Edit recurring transaction - Feature coming soon");
+}
+
+// Delete a recurring transaction
+function deleteRecurringTransaction(txId) {
+  if (!confirm("Are you sure you want to delete this recurring transaction?")) {
+    return;
+  }
+  
+  // Remove transaction
+  data.settings.recurringTransactions = data.settings.recurringTransactions.filter(t => t.id !== txId);
+  
+  // Save and refresh
+  saveData();
+  renderRecurringTransactions();
+  
+  showUpdateNotification("Recurring transaction deleted");
+}
+
+// Initialize recurring transaction settings
+function initRecurringSettings() {
+  // Set toggle values
+  document.getElementById("auto-create-recurring").checked = data.settings.recurring.autoCreate;
+  document.getElementById("notify-recurring").checked = data.settings.recurring.notifications;
+}
+
+// Render bill calendar
+function renderBillCalendar() {
+  // Create bill calendar widget if it doesn't exist
+  if (!document.getElementById("bill-calendar-widget")) {
+    // Create the bill calendar container
+    const billCalendarHTML = `
+      <section class="bill-calendar-container card">
+        <h2>Upcoming Bills</h2>
+        <div id="bill-calendar">
+          <div class="bill-calendar-header">
+            <button id="prev-month" class="calendar-nav-btn"><i class="fas fa-chevron-left"></i></button>
+            <h3 id="calendar-month">March 2023</h3>
+            <button id="next-month" class="calendar-nav-btn"><i class="fas fa-chevron-right"></i></button>
+          </div>
+          <div id="calendar-grid">
+            <!-- Calendar will be rendered here -->
+          </div>
+        </div>
+        <div class="bill-calendar-footer">
+          <button id="add-bill-btn" class="primary-btn"><i class="fas fa-plus"></i> Add Bill</button>
+        </div>
+      </section>
+    `;
+    
+    // Insert after total balance card
+    const totalBalanceCard = document.querySelector(".total-balance.card");
+    if (totalBalanceCard) {
+      totalBalanceCard.insertAdjacentHTML('afterend', billCalendarHTML);
+      
+      // Add event listeners
+      document.getElementById("prev-month").addEventListener("click", () => navigateCalendar(-1));
+      document.getElementById("next-month").addEventListener("click", () => navigateCalendar(1));
+      document.getElementById("add-bill-btn").addEventListener("click", showAddBillModal);
+      
+      // Render the calendar
+      renderCalendar(new Date());
+    }
+  } else {
+    // Just refresh the calendar if it already exists
+    renderCalendar(new Date());
+  }
+}
+
+// Render calendar for a specific month
+function renderCalendar(date) {
+  const calendarGrid = document.getElementById("calendar-grid");
+  if (!calendarGrid) return;
+  
+  // Update month heading
+  document.getElementById("calendar-month").textContent = 
+    date.toLocaleString('default', { month: 'long', year: 'numeric' });
+  
+  // Clear grid
+  calendarGrid.innerHTML = '';
+  
+  // Create weekday headers
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  weekdays.forEach(day => {
+    const dayEl = document.createElement("div");
+    dayEl.className = "calendar-day-header";
+    dayEl.textContent = day;
+    calendarGrid.appendChild(dayEl);
+  });
+  
+  // Get first day of month and last day
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  
+  // Add empty cells for days before first day of month
+  for (let i = 0; i < firstDay.getDay(); i++) {
+    const emptyDay = document.createElement("div");
+    emptyDay.className = "calendar-day empty";
+    calendarGrid.appendChild(emptyDay);
+  }
+  
+  // Get today's date for highlighting
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Add days of the month
+  for (let i = 1; i <= lastDay.getDate(); i++) {
+    const dayEl = document.createElement("div");
+    const currentDate = new Date(date.getFullYear(), date.getMonth(), i);
+    
+    // Add class based on whether it's today
+    dayEl.className = "calendar-day";
+    if (currentDate.getTime() === today.getTime()) {
+      dayEl.classList.add("today");
+    }
+    
+    // Date number
+    const dateNumber = document.createElement("div");
+    dateNumber.className = "date-number";
+    dateNumber.textContent = i;
+    dayEl.appendChild(dateNumber);
+    
+    // Add bills for this day
+    const dateStr = currentDate.toISOString().split('T')[0];
+    const dayBills = data.bills.filter(bill => {
+      const billDate = new Date(bill.date);
+      return billDate.getDate() === i && 
+             billDate.getMonth() === date.getMonth() && 
+             billDate.getFullYear() === date.getFullYear();
+    });
+    
+    if (dayBills.length > 0) {
+      const billsList = document.createElement("div");
+      billsList.className = "day-bills";
+      
+      dayBills.forEach(bill => {
+        const billItem = document.createElement("div");
+        billItem.className = "bill-item";
+        billItem.innerHTML = `
+          <span class="bill-amount">${formatAmt(bill.amount)}</span>
+          <span class="bill-name">${bill.description}</span>
+        `;
+        billItem.addEventListener("click", () => showBillDetails(bill.id));
+        billsList.appendChild(billItem);
+      });
+      
+      dayEl.appendChild(billsList);
+      dayEl.classList.add("has-bills");
+    }
+    
+    calendarGrid.appendChild(dayEl);
+  }
+}
+
+// Navigate calendar months
+function navigateCalendar(monthOffset) {
+  const currentMonth = document.getElementById("calendar-month").textContent;
+  const [monthName, year] = currentMonth.split(" ");
+  
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+  const currentMonthIndex = monthNames.indexOf(monthName);
+  
+  const newDate = new Date(parseInt(year), currentMonthIndex + monthOffset, 1);
+  renderCalendar(newDate);
+}
+
+// Show modal to add a new bill
+function showAddBillModal() {
+  // Create the modal if it doesn't exist
+  if (!document.getElementById("bill-modal")) {
+    const modalHTML = `
+      <div id="bill-modal" class="modal hidden">
+        <div class="modal-content">
+          <button id="bill-close-btn" class="close-btn" aria-label="Close">&times;</button>
+          <h3 id="bill-modal-title"><i class="fas fa-file-invoice-dollar"></i> Add Bill</h3>
+          <form id="bill-form">
+            <label>
+              Description
+              <input type="text" id="bill-desc" required placeholder="e.g. Rent Payment" />
+            </label>
+            <label>
+              Amount
+              <input type="number" step="0.01" id="bill-amount" required />
+            </label>
+            <label>
+              Due Date
+              <input type="date" id="bill-date" required />
+            </label>
+            <label>
+              Account
+              <select id="bill-account">
+                <!-- Accounts will be populated dynamically -->
+              </select>
+            </label>
+            <label>
+              Category
+              <select id="bill-category">
+                <!-- Categories will be populated dynamically -->
+              </select>
+            </label>
+            <label>
+              Recurring
+              <select id="bill-recurring">
+                <option value="none">None</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </label>
+            <label>
+              Notes
+              <textarea id="bill-notes" rows="3"></textarea>
+            </label>
+            <div class="form-actions">
+              <button type="button" id="bill-cancel-btn">Cancel</button>
+              <button type="submit">Save Bill</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Add event listeners
+    document.getElementById("bill-close-btn").addEventListener("click", function() {
+      document.getElementById("bill-modal").classList.add("hidden");
+      document.body.classList.remove("modal-open");
+    });
+    
+    document.getElementById("bill-cancel-btn").addEventListener("click", function() {
+      document.getElementById("bill-modal").classList.add("hidden");
+      document.body.classList.remove("modal-open");
+    });
+    
+    document.getElementById("bill-form").addEventListener("submit", function(e) {
+      e.preventDefault();
+      saveBill();
+    });
+  }
+  
+  // Reset form
+  document.getElementById("bill-form").reset();
+  document.getElementById("bill-date").value = getTodayString();
+  document.getElementById("bill-modal-title").innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Add Bill';
+  
+  // Populate account options
+  const accountSelect = document.getElementById("bill-account");
+  accountSelect.innerHTML = '';
+  data.accounts.forEach(account => {
+    const option = document.createElement("option");
+    option.value = account.id;
+    option.textContent = account.name;
+    accountSelect.appendChild(option);
+  });
+  
+  // Populate category options
+  const categorySelect = document.getElementById("bill-category");
+  categorySelect.innerHTML = '';
+  data.categories.forEach(category => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    categorySelect.appendChild(option);
+  });
+  
+  // Show the modal
+  document.getElementById("bill-modal").classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+// Save a bill
+function saveBill() {
+  const description = document.getElementById("bill-desc").value;
+  const amount = parseFloat(document.getElementById("bill-amount").value);
+  const date = document.getElementById("bill-date").value;
+  const account = document.getElementById("bill-account").value;
+  const category = document.getElementById("bill-category").value;
+  const recurring = document.getElementById("bill-recurring").value;
+  const notes = document.getElementById("bill-notes").value;
+  
+  // Create bill object
+  const bill = {
+    id: "bill-" + Math.random().toString(36).substr(2, 9),
+    description,
+    amount,
+    date,
+    account,
+    category,
+    recurring,
+    notes,
+    paid: false
+  };
+  
+  // Add to bills array
+  data.bills.push(bill);
+  
+  // Save data
+  saveData();
+  
+  // Close modal
+  document.getElementById("bill-modal").classList.add("hidden");
+  document.body.classList.remove("modal-open");
+  
+  // Refresh calendar
+  renderCalendar(new Date(date));
+  
+  showUpdateNotification("Bill added successfully");
+}
+
+// Show bill details
+function showBillDetails(billId) {
+  // Find the bill
+  const bill = data.bills.find(b => b.id === billId);
+  if (!bill) return;
+  
+  // Create modal if it doesn't exist
+  if (!document.getElementById("bill-details-modal")) {
+    const modalHTML = `
+      <div id="bill-details-modal" class="modal hidden">
+        <div class="modal-content">
+          <button id="bill-details-close-btn" class="close-btn" aria-label="Close">&times;</button>
+          <h3><i class="fas fa-file-invoice-dollar"></i> <span id="bill-details-title">Bill Details</span></h3>
+          <div id="bill-details-content">
+            <!-- Bill details will be rendered here -->
+          </div>
+          <div class="modal-actions">
+            <button id="pay-bill-btn" class="primary-btn"><i class="fas fa-check"></i> Mark as Paid</button>
+            <button id="edit-bill-btn" class="edit-btn"><i class="fas fa-edit"></i> Edit</button>
+            <button id="delete-bill-btn" class="delete-btn"><i class="fas fa-trash"></i> Delete</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Add event listeners
+    document.getElementById("bill-details-close-btn").addEventListener("click", function() {
+      document.getElementById("bill-details-modal").classList.add("hidden");
+      document.body.classList.remove("modal-open");
+    });
+    
+    document.getElementById("pay-bill-btn").addEventListener("click", function() {
+      payBill(this.getAttribute("data-id"));
+    });
+    
+    document.getElementById("edit-bill-btn").addEventListener("click", function() {
+      editBill(this.getAttribute("data-id"));
+    });
+    
+    document.getElementById("delete-bill-btn").addEventListener("click", function() {
+      deleteBill(this.getAttribute("data-id"));
+    });
+  }
+  
+  // Find account and category names
+  const account = data.accounts.find(a => a.id === bill.account);
+  const accountName = account ? account.name : "Unknown Account";
+  
+  // Update modal content
+  document.getElementById("bill-details-title").textContent = bill.description;
+  document.getElementById("bill-details-content").innerHTML = `
+    <p><strong>Amount:</strong> ${formatAmt(bill.amount)}</p>
+    <p><strong>Due Date:</strong> ${new Date(bill.date).toLocaleDateString()}</p>
+    <p><strong>Account:</strong> ${accountName}</p>
+    <p><strong>Category:</strong> ${bill.category}</p>
+    <p><strong>Recurring:</strong> ${bill.recurring === 'none' ? 'No' : bill.recurring}</p>
+    ${bill.notes ? `<p><strong>Notes:</strong> ${bill.notes}</p>` : ''}
+    <p><strong>Status:</strong> <span class="bill-status ${bill.paid ? 'paid' : 'unpaid'}">${bill.paid ? 'Paid' : 'Unpaid'}</span></p>
+  `;
+  
+  // Set data attributes for action buttons
+  document.getElementById("pay-bill-btn").setAttribute("data-id", bill.id);
+  document.getElementById("edit-bill-btn").setAttribute("data-id", bill.id);
+  document.getElementById("delete-bill-btn").setAttribute("data-id", bill.id);
+  
+  // Update pay button text based on status
+  document.getElementById("pay-bill-btn").innerHTML = bill.paid ? 
+    '<i class="fas fa-undo"></i> Mark as Unpaid' : 
+    '<i class="fas fa-check"></i> Mark as Paid';
+  
+  // Show the modal
+  document.getElementById("bill-details-modal").classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+// Mark a bill as paid/unpaid
+function payBill(billId) {
+  // Find the bill
+  const bill = data.bills.find(b => b.id === billId);
+  if (!bill) return;
+  
+  // Toggle paid status
+  bill.paid = !bill.paid;
+  
+  // If marking as paid, create a transaction
+  if (bill.paid) {
+    const transaction = {
+      id: "tx-" + Math.random().toString(36).substr(2, 9),
+      amount: bill.amount,
+      account: bill.account,
+      type: "expense",
+      description: bill.description,
+      date: getTodayString(),
+      category: bill.category,
+      isRecurring: bill.recurring !== 'none',
+      isPinned: false,
+      notes: `Paid bill: ${bill.description}`,
+      tags: ["Bill Payment"]
+    };
+    
+    // Add to transactions
+    data.transactions.push(transaction);
+    
+    // Update account balance
+    data.balances[bill.account] -= bill.amount;
+  }
+  
+  // Save data
+  saveData();
+  
+  // Update the modal
+  showBillDetails(billId);
+  
+  // Refresh calendar and balances
+  renderCalendar(new Date(bill.date));
+  renderBalances();
+  renderTransactions();
+  
+  showUpdateNotification(`Bill marked as ${bill.paid ? 'paid' : 'unpaid'}`);
+}
+
+// Edit a bill
+function editBill(billId) {
+  // Find the bill
+  const bill = data.bills.find(b => b.id === billId);
+  if (!bill) return;
+  
+  // Close details modal
+  document.getElementById("bill-details-modal").classList.add("hidden");
+  
+  // Open bill form modal
+  showAddBillModal();
+  
+  // Set form values
+  document.getElementById("bill-modal-title").innerHTML = '<i class="fas fa-edit"></i> Edit Bill';
+  document.getElementById("bill-desc").value = bill.description;
+  document.getElementById("bill-amount").value = bill.amount;
+  document.getElementById("bill-date").value = bill.date;
+  document.getElementById("bill-account").value = bill.account;
+  document.getElementById("bill-category").value = bill.category;
+  document.getElementById("bill-recurring").value = bill.recurring;
+  document.getElementById("bill-notes").value = bill.notes || '';
+  
+  // Update form submission to edit instead of create
+  const form = document.getElementById("bill-form");
+  form.onsubmit = function(e) {
+    e.preventDefault();
+    
+    // Update bill properties
+    bill.description = document.getElementById("bill-desc").value;
+    bill.amount = parseFloat(document.getElementById("bill-amount").value);
+    bill.date = document.getElementById("bill-date").value;
+    bill.account = document.getElementById("bill-account").value;
+    bill.category = document.getElementById("bill-category").value;
+    bill.recurring = document.getElementById("bill-recurring").value;
+    bill.notes = document.getElementById("bill-notes").value;
+    
+    // Save data
+    saveData();
+    
+    // Close modal
+    document.getElementById("bill-modal").classList.add("hidden");
+    document.body.classList.remove("modal-open");
+    
+    // Refresh calendar
+    renderCalendar(new Date(bill.date));
+    
+    showUpdateNotification("Bill updated successfully");
+  };
+}
+
+// Delete a bill
+function deleteBill(billId) {
+  if (!confirm("Are you sure you want to delete this bill?")) return;
+  
+  // Remove the bill
+  data.bills = data.bills.filter(b => b.id !== billId);
+  
+  // Save data
+  saveData();
+  
+  // Close modal
+  document.getElementById("bill-details-modal").classList.add("hidden");
+  document.body.classList.remove("modal-open");
+  
+  // Refresh calendar
+  renderCalendar(new Date());
+  
+  showUpdateNotification("Bill deleted successfully");
+}
+
+// Show categories management modal
+function showCategoriesModal() {
+  // Create modal if it doesn't exist
+  if (!document.getElementById("categories-modal")) {
+    const modalHTML = `
+      <div id="categories-modal" class="modal hidden">
+        <div class="modal-content">
+          <button id="categories-close-btn" class="close-btn" aria-label="Close">&times;</button>
+          <h3><i class="fas fa-tags"></i> Manage Categories</h3>
+          <div id="categories-list">
+            <!-- Categories will be rendered here -->
+          </div>
+          <div class="add-category-form">
+            <input type="text" id="new-category-input" placeholder="New category name">
+            <button id="add-category-btn" class="primary-btn">Add</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Add event listeners
+    document.getElementById("categories-close-btn").addEventListener("click", function() {
+      document.getElementById("categories-modal").classList.add("hidden");
+      document.body.classList.remove("modal-open");
+    });
+    
+    document.getElementById("add-category-btn").addEventListener("click", addNewCategory);
+  }
+  
+  // Render categories
+  renderCategoriesList();
+  
+  // Show the modal
+  document.getElementById("categories-modal").classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+// Render categories list
+function renderCategoriesList() {
+  const categoriesListEl = document.getElementById("categories-list");
+  categoriesListEl.innerHTML = '';
+  
+  data.categories.forEach(category => {
+    const categoryElement = document.createElement("div");
+    categoryElement.className = "category-item";
+    categoryElement.innerHTML = `
+      <span class="category-name">${category}</span>
+      <button class="delete-category-btn" data-category="${category}"><i class="fas fa-trash"></i></button>
+    `;
+    
+    categoriesListEl.appendChild(categoryElement);
+  });
+  
+  // Add event listeners to delete buttons
+  document.querySelectorAll(".delete-category-btn").forEach(btn => {
+    btn.addEventListener("click", function() {
+      const category = this.getAttribute("data-category");
+      deleteCategory(category);
+    });
+  });
+}
+
+// Add a new category
+function addNewCategory() {
+  const categoryInput = document.getElementById("new-category-input");
+  const category = categoryInput.value.trim();
+  
+  if (!category) {
+    categoryInput.classList.add("input-error");
+    setTimeout(() => {
+      categoryInput.classList.remove("input-error");
+    }, 2000);
+    return;
+  }
+  
+  // Check if category already exists
+  if (data.categories.includes(category)) {
+    showUpdateNotification("This category already exists");
+    categoryInput.value = "";
+    return;
+  }
+  
+  // Add the category
+  data.categories.push(category);
+  saveData();
+  renderCategoriesList();
+  
+  // Clear input
+  categoryInput.value = "";
+  showUpdateNotification("Category added successfully");
+}
+
+// Delete a category
+function deleteCategory(category) {
+  // Don't allow deleting if it's the only category
+  if (data.categories.length <= 1) {
+    showUpdateNotification("You must have at least one category");
+    return;
+  }
+  
+  if (!confirm(`Are you sure you want to delete the "${category}" category? Transactions with this category will be set to "Other".`)) {
+    return;
+  }
+  
+  // Update transactions using this category
+  data.transactions.forEach(tx => {
+    if (tx.category === category) {
+      tx.category = "Other";
+    }
+  });
+  
+  // Update bills using this category
+  data.bills.forEach(bill => {
+    if (bill.category === category) {
+      bill.category = "Other";
+    }
+  });
+  
+  // Remove category
+  data.categories = data.categories.filter(c => c !== category);
+  
+  saveData();
+  renderCategoriesList();
+  renderTransactions();
+  
+  showUpdateNotification("Category deleted successfully");
 }
 
 // Create and update charts
@@ -2316,10 +3820,33 @@ document.addEventListener("DOMContentLoaded", () => {
   updateAccountOptions();
   updateFilters();
   initAccountManagement();
+  
+  // Apply app settings
+  applyAppSettings();
 
   // Initialize views
   if (document.getElementById("charts-view")) {
     updateCharts();
+  }
+  
+  // Initialize settings view
+  if (document.getElementById("settings-view")) {
+    initSettingsView();
+  }
+  
+  // Check for any recurring transactions that need to be created
+  if (data.settings.recurring && data.settings.recurring.autoCreate) {
+    processRecurringTransactions();
+  }
+  
+  // Ensure recurring transactions array exists
+  if (!data.settings.recurringTransactions) {
+    data.settings.recurringTransactions = [];
+  }
+  
+  // Add Bill Calendar
+  if (document.getElementById("widget-upcoming-bills") && document.getElementById("widget-upcoming-bills").checked) {
+    renderBillCalendar();
   }
 
   if (document.getElementById("budgets-view")) {
@@ -2556,8 +4083,9 @@ document.addEventListener("DOMContentLoaded", () => {
       saveEditedTransaction();
     });
 
-  // Reset all data button
+  // Reset all data buttons
   document.getElementById("reset-btn").addEventListener("click", confirmReset);
+  document.getElementById("settings-reset-btn").addEventListener("click", confirmReset);
   
   // Account management event listeners
   document.getElementById("accounts-close-btn").addEventListener("click", cancelAccountModal);
