@@ -80,44 +80,62 @@
             <section class="transactions">
                 <h2>Transactions</h2>
                 <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Search transactions..." />
-                    <i class="fas fa-search search-icon"></i>
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" id="search-input" placeholder="Search transactions..." />
+                    </div>
                 </div>
                 <div class="transaction-controls">
-                    <div class="filter-controls">
-                        <span class="control-label">Filter:</span>
-                        <select id="account-filter">
-                            <option value="all">All Accounts</option>
-                            <option value="cu">Credit Union</option>
-                            <option value="revolut">Revolut</option>
-                            <option value="cash">Cash</option>
-                        </select>
-                        <select id="type-filter">
-                            <option value="all">All Types</option>
-                            <option value="expense">Expenses</option>
-                            <option value="income">Income</option>
-                        </select>
-                        <select id="date-range-filter">
-                            <option value="all">All Dates</option>
-                            <option value="today">Today</option>
-                            <option value="week">This Week</option>
-                            <option value="month">This Month</option>
-                            <option value="year">This Year</option>
-                            <option value="custom">Custom Range</option>
-                        </select>
+                    <div class="control-section">
+                        <h3 class="control-header">Account Filter</h3>
+                        <div class="filter-controls">
+                            <select id="account-filter">
+                                <option value="all">All Accounts</option>
+                                <option value="cu">Credit Union</option>
+                                <option value="revolut">Revolut</option>
+                                <option value="cash">Cash</option>
+                            </select>
+                        </div>
                     </div>
-                    <div id="custom-date-range" class="custom-date-range hidden">
-                        <input type="date" id="custom-start-date" />
-                        <span>to</span>
-                        <input type="date" id="custom-end-date" />
+                    
+                    <div class="control-section">
+                        <h3 class="control-header">Transaction Type</h3>
+                        <div class="filter-controls">
+                            <select id="type-filter">
+                                <option value="all">All Types</option>
+                                <option value="expense">Expenses</option>
+                                <option value="income">Income</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="sort-controls">
-                        <span class="control-label">Sort by:</span>
-                        <select id="sort-by">
-                            <option value="date-desc">Date (Newest)</option>
-                            <option value="date-asc">Date (Oldest)</option>
-                            <option value="amount-desc">Amount (High-Low)</option>
-                            <option value="amount-asc">Amount (Low-High)</option>
+                    
+                    <div class="control-section">
+                        <h3 class="control-header">Date Range</h3>
+                        <div class="filter-controls">
+                            <select id="date-range-filter">
+                                <option value="all">All Dates</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                                <option value="year">This Year</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+                        <div id="custom-date-range" class="custom-date-range hidden">
+                            <input type="date" id="custom-start-date" />
+                            <span>to</span>
+                            <input type="date" id="custom-end-date" />
+                        </div>
+                    </div>
+                    
+                    <div class="control-section">
+                        <h3 class="control-header">Sort Order</h3>
+                        <div class="sort-controls">
+                            <select id="sort-by">
+                                <option value="date-desc">Date (Newest)</option>
+                                <option value="date-asc">Date (Oldest)</option>
+                                <option value="amount-desc">Amount (High-Low)</option>
+                                <option value="amount-asc">Amount (Low-High)</option>
                         </select>
                     </div>
                 </div>
