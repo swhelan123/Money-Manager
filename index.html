@@ -2,10 +2,12 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+        <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover" />
         <!-- Enable full-screen on iOS when added to homescreen -->
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-touch-fullscreen" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="theme-color" content="#4a90e2" />
         <meta name="apple-mobile-web-app-title" content="Money Manager" />
         <link rel="apple-touch-icon" href="app_icon.png" />
         <link rel="apple-touch-icon" sizes="152x152" href="app_icon.png" />
@@ -57,6 +59,31 @@
         <!-- Transaction list -->
         <section class="transactions">
             <h2>Transactions</h2>
+            <div class="transaction-controls">
+                <div class="filter-controls">
+                    <span class="control-label">Filter:</span>
+                    <select id="account-filter">
+                        <option value="all">All Accounts</option>
+                        <option value="cu">Credit Union</option>
+                        <option value="revolut">Revolut</option>
+                        <option value="cash">Cash</option>
+                    </select>
+                    <select id="type-filter">
+                        <option value="all">All Types</option>
+                        <option value="expense">Expenses</option>
+                        <option value="income">Income</option>
+                    </select>
+                </div>
+                <div class="sort-controls">
+                    <span class="control-label">Sort by:</span>
+                    <select id="sort-by">
+                        <option value="date-desc">Date (Newest)</option>
+                        <option value="date-asc">Date (Oldest)</option>
+                        <option value="amount-desc">Amount (High-Low)</option>
+                        <option value="amount-asc">Amount (Low-High)</option>
+                    </select>
+                </div>
+            </div>
             <ul id="tx-list"></ul>
             <button id="add-btn"><i class="fas fa-plus"></i> Add Transaction</button>
         </section>
@@ -107,7 +134,8 @@
                 </div>
                 <div id="tx-info" class="tx-details"></div>
                 <div class="modal-actions">
-                    <button id="delete-tx-btn" class="delete-btn"><i class="fas fa-trash"></i> Delete Transaction</button>
+                    <button id="edit-tx-btn" class="edit-btn"><i class="fas fa-edit"></i> Edit</button>
+                    <button id="delete-tx-btn" class="delete-btn"><i class="fas fa-trash"></i> Delete</button>
                 </div>
             </div>
         </div>
@@ -123,6 +151,44 @@
                     <button id="reset-cancel-btn" class="cancel-btn">Cancel</button>
                 </div>
             </div>
+        </div>
+
+        <!-- Edit Transaction Modal -->
+        <div id="edit-tx-modal" class="modal hidden">
+            <form id="edit-tx-form">
+                <h3><i class="fas fa-edit"></i> Edit Transaction</h3>
+                <label>
+                    Amount
+                    <input type="number" step="0.01" id="edit-tx-amount" required />
+                </label>
+                <label>
+                    Account
+                    <select id="edit-tx-account">
+                        <option value="cu">Credit Union</option>
+                        <option value="revolut">Revolut</option>
+                        <option value="cash">Cash</option>
+                    </select>
+                </label>
+                <label>
+                    Type
+                    <select id="edit-tx-type">
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                    </select>
+                </label>
+                <label>
+                    Description
+                    <input type="text" id="edit-tx-desc" placeholder="e.g. Coffee" />
+                </label>
+                <label>
+                    Date
+                    <input type="date" id="edit-tx-date" required />
+                </label>
+                <div class="form-actions">
+                    <button type="submit">Save Changes</button>
+                    <button type="button" id="edit-cancel-btn">Cancel</button>
+                </div>
+            </form>
         </div>
 
         <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
