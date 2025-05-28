@@ -8,11 +8,11 @@ let data = {
   balances: { cu: 0, revolut: 0, cash: 0 },
   transactions: [],
   categories: [
-    "Food & Dining", 
-    "Shopping", 
-    "Transportation", 
-    "Bills & Utilities", 
-    "Entertainment", 
+    "Food & Dining",
+    "Shopping",
+    "Transportation",
+    "Bills & Utilities",
+    "Entertainment",
     "Health & Fitness",
     "Travel",
     "Education",
@@ -38,11 +38,11 @@ function loadData() {
       balances: savedData.balances || { cu: 0, revolut: 0, cash: 0 },
       transactions: savedData.transactions || [],
       categories: savedData.categories || [
-        "Food & Dining", 
-        "Shopping", 
-        "Transportation", 
-        "Bills & Utilities", 
-        "Entertainment", 
+        "Food & Dining",
+        "Shopping",
+        "Transportation",
+        "Bills & Utilities",
+        "Entertainment",
         "Health & Fitness",
         "Travel",
         "Education",
@@ -58,7 +58,7 @@ function loadData() {
         recurringTransactions: []
       }
     };
-    
+
     // Migrate existing transactions to include new fields if they don't exist
     data.transactions = data.transactions.map(tx => {
       return {
@@ -71,7 +71,7 @@ function loadData() {
       };
     });
   }
-  
+
   // Apply theme from settings
   applyTheme(data.settings.theme);
 }
@@ -133,25 +133,25 @@ function renderTransactions() {
   // Check for pinned transactions first
   const pinnedTransactions = filteredTransactions.filter(tx => tx.isPinned);
   const regularTransactions = filteredTransactions.filter(tx => !tx.isPinned);
-  
+
   // Process pinned transactions first, then regular ones
   [...pinnedTransactions, ...regularTransactions].forEach((tx) => {
     const li = document.createElement("li");
     li.setAttribute("data-account", tx.account);
     li.setAttribute("data-id", tx.id || "tx-" + Math.random().toString(36).substr(2, 9));
-    
+
     // Add class for pinned transactions
     if (tx.isPinned) {
       li.classList.add("pinned");
     }
-    
+
     // Add recurring indicator if applicable
-    const recurringIcon = tx.isRecurring ? 
+    const recurringIcon = tx.isRecurring ?
       `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>` : '';
-    
+
     li.innerHTML = `
       <span>
-        <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}" 
+        <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}"
            style="color: var(--${tx.type}-color);"></i>
         <span class="account-dot" style="background-color: var(--${tx.account}-color);"></span>
         ${tx.description || "(no desc)"}
@@ -180,17 +180,17 @@ function renderTransactions() {
                         "<p><strong>Amount:</strong> " + formatAmt(tx.amount) + "</p>" +
                         "<p><strong>Date:</strong> " + tx.date + "</p>" +
                         "<p><strong>Category:</strong> " + (tx.category || "Uncategorized") + "</p>";
-      
+
       // Add recurring info if applicable
       if (tx.isRecurring) {
         detailsHtml += "<p><strong>Recurring:</strong> Yes</p>";
       }
-      
+
       // Add notes if available
       if (tx.notes && tx.notes.trim() !== "") {
         detailsHtml += "<p><strong>Notes:</strong> " + tx.notes + "</p>";
       }
-      
+
       // Add attachments if available
       if (tx.attachments && tx.attachments.length > 0) {
         detailsHtml += "<div class='attachment-section'><strong>Attachments:</strong><div class='attachment-list'>";
@@ -208,8 +208,12 @@ function renderTransactions() {
           currentMap = null;
       }
 
+      // Store current scroll position before opening modal
+      const scrollPos = window.scrollY;
       modal.classList.remove("hidden");
       document.body.classList.add("modal-open");
+      // Store scroll position as data attribute on modal
+      modal.dataset.scrollPosition = scrollPos;
 
       // Initialize map after modal is visible
       setTimeout(() => {
@@ -260,13 +264,13 @@ document.getElementById("tx-form").addEventListener("submit", function (e) {
 
   // Generate a unique ID for the transaction
   const txId = "tx-" + Math.random().toString(36).substr(2, 9);
-  
-  let transaction = { 
+
+  let transaction = {
     id: txId,
-    amount: amt, 
-    account: acc, 
-    type, 
-    description: desc, 
+    amount: amt,
+    account: acc,
+    type,
+    description: desc,
     date,
     category,
     isRecurring,
@@ -279,19 +283,19 @@ document.getElementById("tx-form").addEventListener("submit", function (e) {
     if (location) {
       transaction.location = location;
     }
-    
+
     if (attachments && attachments.length > 0) {
       transaction.attachments = attachments;
     }
-    
+
     data.transactions.push(transaction);
     data.balances[acc] += type === "expense" ? -amt : amt;
-    
+
     // Handle pinned status
     if (isPinned) {
       data.settings.pinnedTransactions.push(txId);
     }
-    
+
     // Handle recurring transactions
     if (isRecurring) {
       // Add to recurring transactions with scheduling info
@@ -301,7 +305,7 @@ document.getElementById("tx-form").addEventListener("submit", function (e) {
         nextDueDate: new Date(date).setMonth(new Date(date).getMonth() + 1) // Next month
       });
     }
-    
+
     saveData();
     renderBalances();
     renderTransactions();
@@ -309,11 +313,11 @@ document.getElementById("tx-form").addEventListener("submit", function (e) {
     updateCharts();
     modal.classList.add("hidden");
     e.target.reset();
-    
+
     // Clear attachment preview
     document.getElementById("tx-attachments-preview").innerHTML = "";
   };
-  
+
   // Process attachments if any
   if (fileInput.files.length > 0) {
     processAttachments(fileInput.files).then(attachments => {
@@ -359,27 +363,27 @@ document.getElementById("tx-form").addEventListener("submit", function (e) {
 // Delete a transaction
 function deleteTransaction(index) {
   if (index < 0 || index >= data.transactions.length) return;
-  
+
   const tx = data.transactions[index];
   // Reverse the effect on balance
   data.balances[tx.account] -= tx.type === "expense" ? -tx.amount : tx.amount;
-  
+
   // If it's a pinned transaction, remove from pinned list
   if (tx.isPinned) {
     const txId = tx.id || index;
     data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(id => id !== txId);
   }
-  
+
   // Remove the transaction
   data.transactions.splice(index, 1);
-  
+
   // Save and update UI
   saveData();
   renderBalances();
   renderTransactions();
   renderTotalBalance();
   updateCharts();
-  
+
   // Hide modal
   document.getElementById("transaction-modal").classList.add("hidden");
   if (currentMap) {
@@ -391,9 +395,9 @@ function deleteTransaction(index) {
 // Open edit transaction modal and populate with transaction data
 function openEditTransactionModal(index) {
   if (index < 0 || index >= data.transactions.length) return;
-  
+
   const tx = data.transactions[index];
-  
+
   // Populate the edit form with transaction data
   document.getElementById("edit-tx-amount").value = tx.amount;
   document.getElementById("edit-tx-account").value = tx.account;
@@ -404,7 +408,7 @@ function openEditTransactionModal(index) {
   document.getElementById("edit-tx-recurring").checked = tx.isRecurring || false;
   document.getElementById("edit-tx-pinned").checked = tx.isPinned || false;
   document.getElementById("edit-tx-notes").value = tx.notes || "";
-  
+
   // Display existing attachments if any
   const attachmentContainer = document.getElementById("edit-tx-attachments-preview");
   attachmentContainer.innerHTML = "";
@@ -418,7 +422,7 @@ function openEditTransactionModal(index) {
       `;
       attachmentContainer.appendChild(img);
     });
-    
+
     // Add event listeners to remove buttons
     attachmentContainer.querySelectorAll(".remove-attachment").forEach(btn => {
       btn.addEventListener("click", function() {
@@ -428,12 +432,12 @@ function openEditTransactionModal(index) {
       });
     });
   }
-  
+
   // Hide transaction modal and show edit modal
   document.getElementById("transaction-modal").classList.add("hidden");
   document.getElementById("edit-tx-modal").classList.remove("hidden");
   document.body.classList.add("modal-open");
-  
+
   if (currentMap) {
     currentMap.remove();
     currentMap = null;
@@ -443,9 +447,9 @@ function openEditTransactionModal(index) {
 // Save edited transaction
 function saveEditedTransaction() {
   if (currentTxIndex < 0 || currentTxIndex >= data.transactions.length) return;
-  
+
   const oldTx = data.transactions[currentTxIndex];
-  
+
   // Get values from edit form
   const newAmount = parseFloat(document.getElementById("edit-tx-amount").value);
   const newAccount = document.getElementById("edit-tx-account").value;
@@ -456,16 +460,16 @@ function saveEditedTransaction() {
   const isRecurring = document.getElementById("edit-tx-recurring").checked;
   const isPinned = document.getElementById("edit-tx-pinned").checked;
   const notes = document.getElementById("edit-tx-notes").value;
-  
+
   // Handle attachments - get existing ones minus any that were removed
   const existingAttachments = [...(oldTx.attachments || [])];
   const removedIndices = Array.from(document.querySelectorAll(".remove-attachment"))
     .map(el => parseInt(el.dataset.index));
-  
+
   // Filter out removed attachments
-  const remainingAttachments = existingAttachments.filter((_, i) => 
+  const remainingAttachments = existingAttachments.filter((_, i) =>
     !removedIndices.includes(i));
-  
+
   // Add any new attachments from the file input
   const fileInput = document.getElementById("edit-tx-attachment");
   const newAttachments = [];
@@ -475,16 +479,16 @@ function saveEditedTransaction() {
       .then(attachments => {
         // Combine remaining and new attachments
         const allAttachments = [...remainingAttachments, ...attachments];
-        
+
         // First, reverse the effect of the original transaction on the balance
         data.balances[oldTx.account] -= oldTx.type === "expense" ? -oldTx.amount : oldTx.amount;
-        
+
         // Then, apply the effect of the new transaction values
         data.balances[newAccount] += newType === "expense" ? -newAmount : newAmount;
-        
+
         // Update the transaction object with all fields
         const txId = oldTx.id || "tx-" + Math.random().toString(36).substr(2, 9);
-        
+
         // Update the transaction object
         const updatedTx = {
           id: txId,
@@ -500,7 +504,7 @@ function saveEditedTransaction() {
           location: oldTx.location, // Preserve original location data
           attachments: allAttachments
         };
-        
+
         // Handle pinned status changes
         if (isPinned && !oldTx.isPinned) {
           // Add to pinned list
@@ -511,35 +515,35 @@ function saveEditedTransaction() {
           // Remove from pinned list
           data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(id => id !== txId);
         }
-        
+
         // Replace the transaction in the array
         data.transactions[currentTxIndex] = updatedTx;
-        
+
         // Save and update UI
         saveData();
         renderBalances();
         renderTransactions();
         renderTotalBalance();
         updateCharts();
-        
+
         // Hide reset modal
         document.getElementById("reset-confirm-modal").classList.add("hidden");
         document.body.classList.remove("modal-open");
       });
-    
+
     return; // Exit early, the promise will handle the rest
   }
-  
+
   // If no new attachments, we can update synchronously
   // First, reverse the effect of the original transaction on the balance
   data.balances[oldTx.account] -= oldTx.type === "expense" ? -oldTx.amount : oldTx.amount;
-  
+
   // Then, apply the effect of the new transaction values
   data.balances[newAccount] += newType === "expense" ? -newAmount : newAmount;
-  
+
   // Ensure transaction has an ID
   const txId = oldTx.id || "tx-" + Math.random().toString(36).substr(2, 9);
-  
+
   // Update the transaction object with all fields
   const updatedTx = {
     id: txId,
@@ -555,7 +559,7 @@ function saveEditedTransaction() {
     location: oldTx.location, // Preserve original location data
     attachments: remainingAttachments
   };
-  
+
   // Handle pinned status changes
   if (isPinned && !oldTx.isPinned) {
     // Add to pinned list
@@ -566,17 +570,17 @@ function saveEditedTransaction() {
     // Remove from pinned list
     data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(id => id !== txId);
   }
-  
+
   // Replace the transaction in the array
   data.transactions[currentTxIndex] = updatedTx;
-  
+
   // Save and update UI
   saveData();
   renderBalances();
   renderTransactions();
   renderTotalBalance();
   updateCharts();
-  
+
   // Hide edit modal
   document.getElementById("edit-tx-modal").classList.add("hidden");
   document.body.classList.remove("modal-open");
@@ -601,18 +605,209 @@ function confirmReset() {
   document.getElementById("reset-confirm-modal").classList.add("hidden");
 }
 
+// Balance over time chart
+function initBalanceOverTimeChart() {
+  // Set up event listeners for chart controls
+  document.getElementById('balance-timespan').addEventListener('change', updateBalanceOverTimeChart);
+  document.getElementById('balance-account').addEventListener('change', updateBalanceOverTimeChart);
+
+  // Initial chart update
+  updateBalanceOverTimeChart();
+}
+
+function updateBalanceOverTimeChart() {
+  // Get selected timespan and account
+  const timespan = document.getElementById('balance-timespan').value;
+  const account = document.getElementById('balance-account').value;
+
+  // Get current date
+  const now = new Date();
+
+  // Determine date range based on timespan
+  let startDate, endDate = new Date();
+  let interval = 'day';
+
+  switch(timespan) {
+    case 'week':
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - 7);
+      interval = 'day';
+      break;
+    case 'month':
+      startDate = new Date(now);
+      startDate.setMonth(now.getMonth() - 1);
+      interval = 'day';
+      break;
+    case 'quarter':
+      startDate = new Date(now);
+      startDate.setMonth(now.getMonth() - 3);
+      interval = 'week';
+      break;
+    case 'year':
+      startDate = new Date(now);
+      startDate.setFullYear(now.getFullYear() - 1);
+      interval = 'month';
+      break;
+    default:
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - 7);
+      interval = 'day';
+  }
+  
+  // Create array of dates from start to end based on interval
+  const dates = [];
+  const current = new Date(startDate);
+  
+  while (current <= endDate) {
+    dates.push(new Date(current));
+    
+    switch(interval) {
+      case 'day':
+        current.setDate(current.getDate() + 1);
+        break;
+      case 'week':
+        current.setDate(current.getDate() + 7);
+        break;
+      case 'month':
+        current.setMonth(current.getMonth() + 1);
+        break;
+    }
+  }
+  
+  // Calculate balance at each date point
+  const balances = [];
+  
+  // For each date, calculate the balance based on all transactions up to that date
+  dates.forEach(date => {
+    // Filter transactions up to this date
+    const txUpToDate = data.transactions.filter(tx => new Date(tx.date) <= date);
+    
+    // Calculate balance for the selected account or all accounts (total)
+    if (account === 'all') {
+      // Calculate total balance across all accounts
+      const totalBalance = Object.values(data.balances).reduce((sum, bal) => sum + bal, 0);
+      
+      // Adjust for transactions not included in the current date
+      const futureTransactions = data.transactions.filter(tx => new Date(tx.date) > date);
+      
+      // Calculate the effect of future transactions on the balance
+      const adjustment = futureTransactions.reduce((sum, tx) => {
+        return sum + (tx.type === 'expense' ? tx.amount : -tx.amount);
+      }, 0);
+      
+      // Add adjusted balance to array
+      balances.push(totalBalance - adjustment);
+    } else {
+      // Calculate balance for specific account
+      let accountBalance = data.balances[account] || 0;
+      
+      // Adjust for transactions not included in the current date
+      const futureTransactions = data.transactions.filter(tx => 
+        tx.account === account && new Date(tx.date) > date
+      );
+      
+      // Calculate the effect of future transactions on the balance
+      const adjustment = futureTransactions.reduce((sum, tx) => {
+        return sum + (tx.type === 'expense' ? tx.amount : -tx.amount);
+      }, 0);
+      
+      // Add adjusted balance to array
+      balances.push(accountBalance - adjustment);
+    }
+  });
+  
+  // Format dates for display
+  const formatDate = (date) => {
+    switch(interval) {
+      case 'day':
+        return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      case 'week':
+        return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      case 'month':
+        return date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+    }
+  };
+  
+  // Format labels
+  const labels = dates.map(formatDate);
+  
+  // Get the chart canvas
+  const ctx = document.getElementById('balance-over-time-chart').getContext('2d');
+  
+  // Destroy existing chart if it exists
+  if (window.balanceOverTimeChart) {
+    window.balanceOverTimeChart.destroy();
+  }
+  
+  // Determine chart title based on account selection
+  let chartTitle = 'Balance Over Time';
+  if (account !== 'all') {
+    chartTitle += ` - ${account === 'cu' ? 'Credit Union' : account === 'revolut' ? 'Revolut' : 'Cash'}`;
+  }
+  
+  // Get account color based on selection
+  const chartColor = account === 'all' ? '#4a90e2' : 
+                    account === 'cu' ? '#6a75ca' : 
+                    account === 'revolut' ? '#f37736' : '#4caf50';
+  
+  // Create chart
+  window.balanceOverTimeChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Balance',
+        data: balances,
+        backgroundColor: `${chartColor}33`,
+        borderColor: chartColor,
+        borderWidth: 2,
+        fill: true,
+        tension: 0.2,
+        pointRadius: 3,
+        pointHoverRadius: 5
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        title: {
+          display: true,
+          text: chartTitle
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return `Balance: ${formatAmt(context.raw)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: false,
+          ticks: {
+            callback: function(value) {
+              return formatAmt(value);
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 // ---------- Init ----------
 // Process attachments (photos) for transactions
 function processAttachments(files) {
   return new Promise((resolve, reject) => {
     const attachments = [];
     let processed = 0;
-    
+
     if (files.length === 0) {
       resolve(attachments);
       return;
     }
-    
+
     Array.from(files).forEach(file => {
       // Only process image files
       if (!file.type.match('image.*')) {
@@ -622,9 +817,9 @@ function processAttachments(files) {
         }
         return;
       }
-      
+
       const reader = new FileReader();
-      
+
       reader.onload = function(e) {
         attachments.push({
           name: file.name,
@@ -632,20 +827,20 @@ function processAttachments(files) {
           size: file.size,
           data: e.target.result
         });
-        
+
         processed++;
         if (processed === files.length) {
           resolve(attachments);
         }
       };
-      
+
       reader.onerror = function() {
         processed++;
         if (processed === files.length) {
           resolve(attachments);
         }
       };
-      
+
       reader.readAsDataURL(file);
     });
   });
@@ -668,37 +863,40 @@ function toggleTheme() {
 // Create and update charts
 function updateCharts() {
   if (!window.Chart) return; // Skip if Chart.js isn't loaded
-  
+
   // Destroy existing charts to prevent duplicates
   if (window.incomeVsExpenseChart) window.incomeVsExpenseChart.destroy();
   if (window.categoryChart) window.categoryChart.destroy();
   if (window.accountBalanceChart) window.accountBalanceChart.destroy();
-  
+  if (window.balanceOverTimeChart) window.balanceOverTimeChart.destroy();
+
   // Get canvas contexts
   const incomeVsExpenseCtx = document.getElementById('income-expense-chart').getContext('2d');
   const categoryCtx = document.getElementById('category-chart').getContext('2d');
   const accountBalanceCtx = document.getElementById('account-balance-chart').getContext('2d');
-  
+  const balanceOverTimeCtx = document.getElementById('balance-over-time-chart')?.getContext('2d');
+  if (!balanceOverTimeCtx) return; // Skip if canvas not found
+
   // Get current date
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
-  
+
   // Filter transactions for the current month
   const thisMonthTransactions = data.transactions.filter(tx => {
     const txDate = new Date(tx.date);
     return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
   });
-  
+
   // Income vs Expense data
   const income = thisMonthTransactions
     .filter(tx => tx.type === 'income')
     .reduce((sum, tx) => sum + tx.amount, 0);
-    
+
   const expense = thisMonthTransactions
     .filter(tx => tx.type === 'expense')
     .reduce((sum, tx) => sum + tx.amount, 0);
-  
+
   // Create income vs expense chart
   window.incomeVsExpenseChart = new Chart(incomeVsExpenseCtx, {
     type: 'bar',
@@ -727,7 +925,7 @@ function updateCharts() {
       }
     }
   });
-  
+
   // Category data
   const categories = {};
   thisMonthTransactions.forEach(tx => {
@@ -736,7 +934,7 @@ function updateCharts() {
       categories[category] = (categories[category] || 0) + tx.amount;
     }
   });
-  
+
   // Create category chart
   window.categoryChart = new Chart(categoryCtx, {
     type: 'doughnut',
@@ -770,7 +968,7 @@ function updateCharts() {
       }
     }
   });
-  
+
   // Account balance chart
   window.accountBalanceChart = new Chart(accountBalanceCtx, {
     type: 'pie',
@@ -813,9 +1011,9 @@ function searchTransactions(query) {
     renderTransactions();
     return;
   }
-  
+
   query = query.toLowerCase().trim();
-  
+
   // Filter transactions that match the query
   let searchResults = data.transactions.filter(tx => {
     const desc = (tx.description || '').toLowerCase();
@@ -823,23 +1021,23 @@ function searchTransactions(query) {
     const date = tx.date;
     const amount = tx.amount.toString();
     const notes = (tx.notes || '').toLowerCase();
-    
-    return desc.includes(query) || 
-           category.includes(query) || 
-           date.includes(query) || 
+
+    return desc.includes(query) ||
+           category.includes(query) ||
+           date.includes(query) ||
            amount.includes(query) ||
            notes.includes(query);
   });
-  
+
   // Update the transaction list with search results
   const ul = document.getElementById("tx-list");
   ul.innerHTML = "";
-  
+
   if (searchResults.length === 0) {
     ul.innerHTML = "<li class='no-transactions'>No transactions match your search</li>";
     return;
   }
-  
+
   // Apply current sort to search results
   switch (sortOrder) {
     case "date-desc":
@@ -855,23 +1053,23 @@ function searchTransactions(query) {
       searchResults.sort((a, b) => a.amount - b.amount);
       break;
   }
-  
+
   // Render search results
   searchResults.forEach((tx) => {
     const li = document.createElement("li");
     li.setAttribute("data-account", tx.account);
     li.setAttribute("data-id", tx.id || "tx-" + Math.random().toString(36).substr(2, 9));
-    
+
     if (tx.isPinned) {
       li.classList.add("pinned");
     }
-    
-    const recurringIcon = tx.isRecurring ? 
+
+    const recurringIcon = tx.isRecurring ?
       `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>` : '';
-      
+
     li.innerHTML = `
       <span>
-        <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}" 
+        <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}"
            style="color: var(--${tx.type}-color);"></i>
         <span class="account-dot" style="background-color: var(--${tx.account}-color);"></span>
         ${tx.description || "(no desc)"}
@@ -880,20 +1078,20 @@ function searchTransactions(query) {
       </span>
       <span>${formatAmt(tx.amount)}</span>
     `;
-    
+
     li.addEventListener("click", function() {
-      const index = data.transactions.findIndex(t => 
-        t.id === tx.id || 
-        (t.date === tx.date && t.amount === tx.amount && t.description === tx.description && 
+      const index = data.transactions.findIndex(t =>
+        t.id === tx.id ||
+        (t.date === tx.date && t.amount === tx.amount && t.description === tx.description &&
          t.type === tx.type && t.account === tx.account)
       );
-      
+
       if (index !== -1) {
         currentTxIndex = index;
         openTransactionDetails(tx);
       }
     });
-    
+
     ul.appendChild(li);
   });
 }
@@ -903,22 +1101,22 @@ function openTransactionDetails(tx) {
   const modal = document.getElementById("transaction-modal");
   const info = document.getElementById("tx-info");
   const mapPreview = document.getElementById("map-preview");
-  
+
   let detailsHtml = "<p><strong>Description:</strong> " + (tx.description || "(no desc)") + "</p>" +
                    "<p><strong>Account:</strong> " + (tx.account === "cu" ? "Credit Union" : tx.account === "revolut" ? "Revolut" : "Cash") + "</p>" +
                    "<p><strong>Type:</strong> " + tx.type + "</p>" +
                    "<p><strong>Amount:</strong> " + formatAmt(tx.amount) + "</p>" +
                    "<p><strong>Date:</strong> " + tx.date + "</p>" +
                    "<p><strong>Category:</strong> " + (tx.category || "Uncategorized") + "</p>";
-  
+
   if (tx.isRecurring) {
     detailsHtml += "<p><strong>Recurring:</strong> Yes</p>";
   }
-  
+
   if (tx.notes && tx.notes.trim() !== "") {
     detailsHtml += "<p><strong>Notes:</strong> " + tx.notes + "</p>";
   }
-  
+
   if (tx.attachments && tx.attachments.length > 0) {
     detailsHtml += "<div class='attachment-section'><strong>Attachments:</strong><div class='attachment-list'>";
     tx.attachments.forEach(attachment => {
@@ -926,9 +1124,9 @@ function openTransactionDetails(tx) {
     });
     detailsHtml += "</div></div>";
   }
-  
+
   info.innerHTML = detailsHtml;
-  
+
   // Update pin/unpin button text
   const pinBtn = document.getElementById("pin-tx-btn");
   if (tx.isPinned) {
@@ -938,17 +1136,17 @@ function openTransactionDetails(tx) {
     pinBtn.innerHTML = `<i class="fas fa-thumbtack"></i> Pin`;
     pinBtn.classList.remove("active");
   }
-  
+
   // Clear previous map
   mapPreview.innerHTML = "";
   if (currentMap) {
     currentMap.remove();
     currentMap = null;
   }
-  
+
   modal.classList.remove("hidden");
   document.body.classList.add("modal-open");
-  
+
   // Initialize map after modal is visible
   setTimeout(() => {
     if (tx.location) {
@@ -973,18 +1171,18 @@ function openTransactionDetails(tx) {
 // Toggle pin status of a transaction
 function togglePinTransaction(index) {
   if (index < 0 || index >= data.transactions.length) return;
-  
+
   const tx = data.transactions[index];
   const txId = tx.id || "tx-" + Math.random().toString(36).substr(2, 9);
-  
+
   // Ensure transaction has an ID
   if (!tx.id) {
     tx.id = txId;
   }
-  
+
   // Toggle pinned status
   tx.isPinned = !tx.isPinned;
-  
+
   // Update pinned transactions list in settings
   if (tx.isPinned) {
     if (!data.settings.pinnedTransactions.includes(txId)) {
@@ -993,11 +1191,11 @@ function togglePinTransaction(index) {
   } else {
     data.settings.pinnedTransactions = data.settings.pinnedTransactions.filter(id => id !== txId);
   }
-  
+
   // Save and update UI
   saveData();
   renderTransactions();
-  
+
   // Update pin button in modal
   const pinBtn = document.getElementById("pin-tx-btn");
   if (tx.isPinned) {
@@ -1016,38 +1214,38 @@ function filterByDateRange(startDate, endDate) {
     renderTransactions();
     return;
   }
-  
+
   // Convert to Date objects if strings are provided
   if (startDate && typeof startDate === 'string') {
     startDate = new Date(startDate);
   }
-  
+
   if (endDate && typeof endDate === 'string') {
     endDate = new Date(endDate);
     // Set time to end of day
     endDate.setHours(23, 59, 59, 999);
   }
-  
+
   // Filter transactions by date range
   let filteredTx = data.transactions;
-  
+
   if (startDate) {
     filteredTx = filteredTx.filter(tx => new Date(tx.date) >= startDate);
   }
-  
+
   if (endDate) {
     filteredTx = filteredTx.filter(tx => new Date(tx.date) <= endDate);
   }
-  
+
   // Render filtered transactions
   const ul = document.getElementById("tx-list");
   ul.innerHTML = "";
-  
+
   if (filteredTx.length === 0) {
     ul.innerHTML = "<li class='no-transactions'>No transactions in the selected date range</li>";
     return;
   }
-  
+
   // Apply current sort to filtered results
   switch (sortOrder) {
     case "date-desc":
@@ -1063,23 +1261,23 @@ function filterByDateRange(startDate, endDate) {
       filteredTx.sort((a, b) => a.amount - b.amount);
       break;
   }
-  
+
   // Display filtered transactions
   filteredTx.forEach((tx) => {
     const li = document.createElement("li");
     li.setAttribute("data-account", tx.account);
     li.setAttribute("data-id", tx.id || "tx-" + Math.random().toString(36).substr(2, 9));
-    
+
     if (tx.isPinned) {
       li.classList.add("pinned");
     }
-    
-    const recurringIcon = tx.isRecurring ? 
+
+    const recurringIcon = tx.isRecurring ?
       `<i class="fas fa-sync-alt recurring-icon" title="Recurring Transaction"></i>` : '';
-      
+
     li.innerHTML = `
       <span>
-        <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}" 
+        <i class="fas fa-${tx.type === "expense" ? "arrow-down" : "arrow-up"}"
            style="color: var(--${tx.type}-color);"></i>
         <span class="account-dot" style="background-color: var(--${tx.account}-color);"></span>
         ${tx.description || "(no desc)"}
@@ -1088,20 +1286,20 @@ function filterByDateRange(startDate, endDate) {
       </span>
       <span>${formatAmt(tx.amount)}</span>
     `;
-    
+
     li.addEventListener("click", function() {
-      const index = data.transactions.findIndex(t => 
-        t.id === tx.id || 
-        (t.date === tx.date && t.amount === tx.amount && t.description === tx.description && 
+      const index = data.transactions.findIndex(t =>
+        t.id === tx.id ||
+        (t.date === tx.date && t.amount === tx.amount && t.description === tx.description &&
          t.type === tx.type && t.account === tx.account)
       );
-      
+
       if (index !== -1) {
         currentTxIndex = index;
         openTransactionDetails(tx);
       }
     });
-    
+
     ul.appendChild(li);
   });
 }
@@ -1112,24 +1310,25 @@ function switchView(viewName) {
   document.getElementById('transactions-view').classList.add('hidden');
   document.getElementById('charts-view').classList.add('hidden');
   document.getElementById('budgets-view').classList.add('hidden');
-  
+
   // Remove active class from all nav items
   document.querySelectorAll('.nav-item').forEach(item => {
     item.classList.remove('active');
   });
-  
+
   // Show selected view and highlight nav item
   document.getElementById(`${viewName}-view`).classList.remove('hidden');
   document.querySelector(`.nav-item[data-view="${viewName}"]`).classList.add('active');
-  
+
   // Update current view
   currentView = viewName;
-  
+
   // If switching to charts view, update charts
   if (viewName === 'charts') {
     updateCharts();
+    updateBalanceOverTimeChart();
   }
-  
+
   // If switching to budgets view, render budgets
   if (viewName === 'budgets') {
     renderBudgets();
@@ -1140,37 +1339,37 @@ function switchView(viewName) {
 function renderBudgets() {
   const budgetContainer = document.getElementById('budget-items');
   budgetContainer.innerHTML = '';
-  
+
   // Get all categories
   const categories = data.categories || [];
-  
+
   // Get current month and year
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
   const monthStart = new Date(currentYear, currentMonth, 1);
   const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
-  
+
   // Filter transactions for current month
   const thisMonthTransactions = data.transactions.filter(tx => {
     const txDate = new Date(tx.date);
     return txDate >= monthStart && txDate <= monthEnd && tx.type === 'expense';
   });
-  
+
   // Calculate spending by category
   const spendingByCategory = {};
   thisMonthTransactions.forEach(tx => {
     const category = tx.category || 'Other';
     spendingByCategory[category] = (spendingByCategory[category] || 0) + tx.amount;
   });
-  
+
   // For each category, create a budget item
   categories.forEach(category => {
     if (category === 'Income') return; // Skip Income category for budgets
-    
+
     const budgetItem = document.createElement('div');
     budgetItem.className = 'budget-item';
-    
+
     // Get budget amount from data or default to 0
     const budgetAmount = (data.budgets && data.budgets[category]) || 0;
     // Get actual spending
@@ -1181,7 +1380,7 @@ function renderBudgets() {
     let statusColor = 'var(--accent)';
     if (progressPercent > 90) statusColor = 'var(--expense-color)';
     else if (progressPercent > 70) statusColor = 'orange';
-    
+
     budgetItem.innerHTML = `
       <div class="budget-header">
         <h3>${category}</h3>
@@ -1199,15 +1398,15 @@ function renderBudgets() {
         </div>
       </div>
     `;
-    
+
     budgetContainer.appendChild(budgetItem);
-    
+
     // Add event listener to edit budget button
     budgetItem.querySelector('.set-budget-btn').addEventListener('click', function() {
       const category = this.dataset.category;
       const currentBudget = (data.budgets && data.budgets[category]) || 0;
       const newBudget = prompt(`Set budget for ${category}:`, currentBudget);
-      
+
       if (newBudget !== null) {
         // Parse and validate budget amount
         const budgetAmount = parseFloat(newBudget);
@@ -1233,12 +1432,12 @@ document.addEventListener("DOMContentLoaded", () => {
   renderBalances();
   renderTransactions();
   renderTotalBalance();
-  
+
   // Initialize views
   if (document.getElementById('charts-view')) {
     updateCharts();
   }
-  
+
   if (document.getElementById('budgets-view')) {
     renderBudgets();
   }
@@ -1254,28 +1453,31 @@ document.addEventListener("DOMContentLoaded", () => {
     updateActiveAccountCard();
     renderTransactions();
   });
-  
+
   // Set up navigation between views
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', function() {
       switchView(this.dataset.view);
     });
   });
-  
+
+  // Initialize balance over time chart
+  initBalanceOverTimeChart();
+
   // Initialize with transactions view
   switchView('transactions');
-  
+
   // Search functionality
   document.getElementById("search-input").addEventListener("input", function() {
     searchTransactions(this.value);
   });
-  
+
   // Date range filter
   document.getElementById("date-range-filter").addEventListener("change", function() {
     const value = this.value;
     const now = new Date();
     let startDate, endDate;
-    
+
     switch(value) {
       case "today":
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1306,29 +1508,29 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("custom-date-range").classList.add("hidden");
         return;
     }
-    
+
     document.getElementById("custom-date-range").classList.add("hidden");
     filterByDateRange(startDate, endDate);
   });
-  
+
   // Custom date range inputs
   document.getElementById("custom-start-date").addEventListener("change", applyCustomDateRange);
   document.getElementById("custom-end-date").addEventListener("change", applyCustomDateRange);
-  
+
   function applyCustomDateRange() {
     const startDate = document.getElementById("custom-start-date").value;
     const endDate = document.getElementById("custom-end-date").value;
-    
+
     if (startDate && endDate) {
       filterByDateRange(startDate, endDate);
     }
   }
-  
+
   // Pin/Unpin transaction
   document.getElementById("pin-tx-btn").addEventListener("click", function() {
     togglePinTransaction(currentTxIndex);
   });
-  
+
   // Theme toggle
   document.getElementById("theme-toggle").addEventListener("click", function() {
     toggleTheme();
@@ -1372,6 +1574,9 @@ document.addEventListener("DOMContentLoaded", () => {
         currentMap.remove();
         currentMap = null;
     }
+    // Restore scroll position when closing modal
+    const scrollPos = parseInt(modal.dataset.scrollPosition || '0');
+    setTimeout(() => window.scrollTo(0, scrollPos), 0);
   });
 
   // Close modal when clicking outside the content
@@ -1383,6 +1588,9 @@ document.addEventListener("DOMContentLoaded", () => {
         currentMap.remove();
         currentMap = null;
       }
+      // Restore scroll position when closing modal
+      const scrollPos = parseInt(this.dataset.scrollPosition || '0');
+      setTimeout(() => window.scrollTo(0, scrollPos), 0);
     }
   });
 

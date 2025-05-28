@@ -137,6 +137,30 @@
                 <div class="chart-card">
                     <canvas id="account-balance-chart"></canvas>
                 </div>
+                <div class="chart-card">
+                    <h3>Balance Over Time</h3>
+                    <div class="chart-controls">
+                        <div class="control-group">
+                            <label for="balance-timespan">Timespan:</label>
+                            <select id="balance-timespan">
+                                <option value="week">Last Week</option>
+                                <option value="month" selected>Last Month</option>
+                                <option value="quarter">Last Quarter</option>
+                                <option value="year">Last Year</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="balance-account">Account:</label>
+                            <select id="balance-account">
+                                <option value="all" selected>All Accounts</option>
+                                <option value="cu">Credit Union</option>
+                                <option value="revolut">Revolut</option>
+                                <option value="cash">Cash</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="balance-over-time-chart"></canvas>
+                </div>
             </section>
         </div>
 
