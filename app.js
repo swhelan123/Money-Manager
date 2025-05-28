@@ -87,9 +87,29 @@ function loadData() {
       budgets: savedData.budgets || {},
       settings: savedData.settings || {
         theme: "light",
+        accentColor: "#4a90e2",
         pinnedTransactions: [],
         recurringTransactions: [],
-        version: "0.3.5"
+        dashboard: {
+          widgets: {
+            totalBalance: true,
+            accounts: true,
+            recentTransactions: true,
+            upcomingBills: false,
+            spendingChart: false
+          },
+          defaultView: "transactions"
+        },
+        backup: {
+          googleDrive: {
+            connected: false,
+            lastBackup: null
+          }
+        },
+        recurring: {
+          autoCreate: false,
+          notifications: false
+        }
       },
     };
     
@@ -1825,8 +1845,29 @@ function adjustColor(hexColor, amount, lighten = false) {
 
 // Apply dashboard widget settings
 function applyDashboardWidgets() {
-  const widgets = data.settings.dashboard?.widgets;
-  if (!widgets) return;
+  // Ensure dashboard and widgets objects exist
+  if (!data.settings.dashboard) {
+    data.settings.dashboard = {
+      widgets: {
+        totalBalance: true,
+        accounts: true,
+        recentTransactions: true,
+        upcomingBills: false,
+        spendingChart: false
+      },
+      defaultView: "transactions"
+    };
+  } else if (!data.settings.dashboard.widgets) {
+    data.settings.dashboard.widgets = {
+      totalBalance: true,
+      accounts: true,
+      recentTransactions: true,
+      upcomingBills: false,
+      spendingChart: false
+    };
+  }
+  
+  const widgets = data.settings.dashboard.widgets;
   
   // Total balance widget
   const totalBalanceWidget = document.querySelector(".total-balance.card");
@@ -1887,11 +1928,23 @@ function initSettingsView() {
   
   // Recurring transaction toggle handlers
   document.getElementById("auto-create-recurring").addEventListener("change", function() {
+    if (!data.settings.recurring) {
+      data.settings.recurring = {
+        autoCreate: false,
+        notifications: false
+      };
+    }
     data.settings.recurring.autoCreate = this.checked;
     saveData();
   });
   
   document.getElementById("notify-recurring").addEventListener("change", function() {
+    if (!data.settings.recurring) {
+      data.settings.recurring = {
+        autoCreate: false,
+        notifications: false
+      };
+    }
     data.settings.recurring.notifications = this.checked;
     saveData();
   });
@@ -1959,6 +2012,28 @@ function initColorSelector() {
 
 // Initialize widget checkboxes
 function initWidgetCheckboxes() {
+  // Ensure dashboard and widgets objects exist
+  if (!data.settings.dashboard) {
+    data.settings.dashboard = {
+      widgets: {
+        totalBalance: true,
+        accounts: true,
+        recentTransactions: true,
+        upcomingBills: false,
+        spendingChart: false
+      },
+      defaultView: "transactions"
+    };
+  } else if (!data.settings.dashboard.widgets) {
+    data.settings.dashboard.widgets = {
+      totalBalance: true,
+      accounts: true,
+      recentTransactions: true,
+      upcomingBills: false,
+      spendingChart: false
+    };
+  }
+  
   // Setup widget checkboxes
   document.getElementById('widget-total-balance').checked = data.settings.dashboard.widgets.totalBalance;
   document.getElementById('widget-accounts').checked = data.settings.dashboard.widgets.accounts;
@@ -2000,8 +2075,24 @@ function initWidgetCheckboxes() {
 
 // Initialize default view selector
 function initDefaultViewSelector() {
+  // Ensure dashboard object exists
+  if (!data.settings.dashboard) {
+    data.settings.dashboard = {
+      widgets: {
+        totalBalance: true,
+        accounts: true,
+        recentTransactions: true,
+        upcomingBills: false,
+        spendingChart: false
+      },
+      defaultView: "transactions"
+    };
+  } else if (!data.settings.dashboard.defaultView) {
+    data.settings.dashboard.defaultView = "transactions";
+  }
+  
   const defaultViewSelect = document.getElementById('default-view');
-  defaultViewSelect.value = data.settings.dashboard.defaultView || 'transactions';
+  defaultViewSelect.value = data.settings.dashboard.defaultView;
   
   defaultViewSelect.addEventListener('change', function() {
     data.settings.dashboard.defaultView = this.value;
@@ -2077,6 +2168,11 @@ function addNewTag() {
       tagInput.classList.remove("input-error");
     }, 2000);
     return;
+  }
+  
+  // Ensure tags array exists
+  if (!data.tags || !Array.isArray(data.tags)) {
+    data.tags = [];
   }
   
   // Check if tag already exists
@@ -2262,7 +2358,7 @@ function importData() {
         const importedData = JSON.parse(e.target.result);
         
         // Validate imported data (basic check)
-        if (!importedData.balances || !importedData.transactions) {
+        if (!importedData || !importedData.balances || !importedData.transactions) {
           throw new Error("Invalid data format");
         }
         
@@ -2289,6 +2385,14 @@ function importData() {
 
 // Process recurring transactions
 function processRecurringTransactions() {
+  // Ensure recurring settings exist
+  if (!data.settings.recurring) {
+    data.settings.recurring = {
+      autoCreate: false,
+      notifications: false
+    };
+  }
+  
   // Only process if auto-create is enabled
   if (!data.settings.recurring.autoCreate) return;
   
@@ -2559,6 +2663,14 @@ function deleteRecurringTransaction(txId) {
 
 // Initialize recurring transaction settings
 function initRecurringSettings() {
+  // Ensure recurring settings object exists
+  if (!data.settings.recurring) {
+    data.settings.recurring = {
+      autoCreate: false,
+      notifications: false
+    };
+  }
+  
   // Set toggle values
   document.getElementById("auto-create-recurring").checked = data.settings.recurring.autoCreate;
   document.getElementById("notify-recurring").checked = data.settings.recurring.notifications;
@@ -2566,6 +2678,11 @@ function initRecurringSettings() {
 
 // Render bill calendar
 function renderBillCalendar() {
+  // Ensure bills array exists
+  if (!data.bills || !Array.isArray(data.bills)) {
+    data.bills = [];
+  }
+  
   // Create bill calendar widget if it doesn't exist
   if (!document.getElementById("bill-calendar-widget")) {
     // Create the bill calendar container
@@ -2895,12 +3012,21 @@ function showBillDetails(billId) {
     });
   }
   
+  // Ensure accounts array exists
+  if (!data.accounts || !Array.isArray(data.accounts)) {
+    data.accounts = [
+      { id: "cu", name: "Credit Union", icon: "university", color: "#4a90e2" },
+      { id: "revolut", name: "Revolut", icon: "credit-card", color: "#50c878" },
+      { id: "cash", name: "Cash", icon: "money-bill-wave", color: "#ff9800" }
+    ];
+  }
+  
   // Find account and category names
   const account = data.accounts.find(a => a.id === bill.account);
   const accountName = account ? account.name : "Unknown Account";
   
   // Update modal content
-  document.getElementById("bill-details-title").textContent = bill.description;
+  document.getElementById("bill-details-title").textContent = bill.description || "Untitled Bill";
   document.getElementById("bill-details-content").innerHTML = `
     <p><strong>Amount:</strong> ${formatAmt(bill.amount)}</p>
     <p><strong>Due Date:</strong> ${new Date(bill.date).toLocaleDateString()}</p>
@@ -3084,7 +3210,26 @@ function showCategoriesModal() {
 // Render categories list
 function renderCategoriesList() {
   const categoriesListEl = document.getElementById("categories-list");
+  if (!categoriesListEl) return;
+  
   categoriesListEl.innerHTML = '';
+  
+  // Ensure categories array exists
+  if (!data.categories || !Array.isArray(data.categories)) {
+    data.categories = [
+      "Food & Dining",
+      "Shopping",
+      "Transportation",
+      "Bills & Utilities",
+      "Entertainment",
+      "Health & Fitness",
+      "Travel",
+      "Education",
+      "Personal Care",
+      "Gifts",
+      "Other"
+    ];
+  }
   
   data.categories.forEach(category => {
     const categoryElement = document.createElement("div");
@@ -3834,9 +3979,12 @@ document.addEventListener("DOMContentLoaded", () => {
     initSettingsView();
   }
   
-  // Check for any recurring transactions that need to be created
-  if (data.settings.recurring && data.settings.recurring.autoCreate) {
-    processRecurringTransactions();
+  // Ensure recurring settings exist
+  if (!data.settings.recurring) {
+    data.settings.recurring = {
+      autoCreate: false,
+      notifications: false
+    };
   }
   
   // Ensure recurring transactions array exists
@@ -3844,8 +3992,13 @@ document.addEventListener("DOMContentLoaded", () => {
     data.settings.recurringTransactions = [];
   }
   
-  // Add Bill Calendar
-  if (document.getElementById("widget-upcoming-bills") && document.getElementById("widget-upcoming-bills").checked) {
+  // Check for any recurring transactions that need to be created
+  if (data.settings.recurring && data.settings.recurring.autoCreate) {
+    processRecurringTransactions();
+  }
+  
+  // Initialize and check for bill calendar widget
+  if (data.settings.dashboard && data.settings.dashboard.widgets && data.settings.dashboard.widgets.upcomingBills) {
     renderBillCalendar();
   }
 
