@@ -301,6 +301,16 @@ document.addEventListener("DOMContentLoaded", () => {
   renderTransactions();
   renderTotalBalance();
   
+  // Make total balance clickable to show all transactions
+  document.querySelector(".total-balance").addEventListener("click", function() {
+    filters.account = "all";
+    filters.type = "all";
+    document.getElementById("account-filter").value = "all";
+    document.getElementById("type-filter").value = "all";
+    updateActiveAccountCard();
+    renderTransactions();
+  });
+  
   // Prevent pinch zoom
   document.addEventListener('touchmove', function (event) {
     if (event.scale !== 1) { 

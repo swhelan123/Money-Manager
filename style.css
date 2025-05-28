@@ -531,4 +531,12 @@ header {
     max-width: 400px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     width: 90%;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+
+.total-balance.card.emphasized:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+    background: linear-gradient(135deg, var(--primary), var(--accent));
 }
