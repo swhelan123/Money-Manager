@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+        <!-- Enable full-screen on iOS when added to homescreen -->
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Money Manager" />
+        <link rel="apple-touch-icon" href="app_icon.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="app_icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="app_icon.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="app_icon.png" />
+        <title>Money Manager</title>
+        <!-- Font Awesome -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-pap6Mf+..." crossorigin="anonymous" referrerpolicy="no-referrer" />
+        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    </head>
+    <body>
+        <header>
+            <h1><i class="fas fa-wallet"></i> Money Manager</h1>
+            <button id="reset-btn" class="reset-button"><i class="fas fa-sync"></i> Reset All Data</button>
+        </header>
+
+        <!-- Total Balance -->
+        <section class="total-balance card emphasized">
+            <h2>Total Balance</h2>
+            <p id="total-balance">€0.00</p>
+        </section>
+
+        <!-- Balances -->
+        <section class="balances">
+            <div class="card" data-account="cu">
+                <i class="fas fa-university fa-2x"></i>
+                <div>
+                    <strong>Credit Union</strong>
+                    <p class="balance">€0.00</p>
+                </div>
+            </div>
+            <div class="card" data-account="revolut">
+                <i class="fas fa-credit-card fa-2x"></i>
+                <div>
+                    <strong>Revolut</strong>
+                    <p class="balance">€0.00</p>
+                </div>
+            </div>
+            <div class="card" data-account="cash">
+                <i class="fas fa-money-bill-wave fa-2x"></i>
+                <div>
+                    <strong>Cash</strong>
+                    <p class="balance">€0.00</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Transaction list -->
+        <section class="transactions">
+            <h2>Transactions</h2>
+            <ul id="tx-list"></ul>
+            <button id="add-btn"><i class="fas fa-plus"></i> Add Transaction</button>
+        </section>
+
+        <!-- Modal form -->
+        <div id="tx-modal" class="modal hidden">
+            <form id="tx-form">
+                <h3><i class="fas fa-edit"></i> New Transaction</h3>
+                <label>
+                    Amount
+                    <input type="number" step="0.01" id="tx-amount" required />
+                </label>
+                <label>
+                    Account
+                    <select id="tx-account">
+                        <option value="cu">Credit Union</option>
+                        <option value="revolut">Revolut</option>
+                        <option value="cash">Cash</option>
+                    </select>
+                </label>
+                <label>
+                    Type
+                    <select id="tx-type">
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                    </select>
+                </label>
+                <label>
+                    Description
+                    <input type="text" id="tx-desc" placeholder="e.g. Coffee" />
+                </label>
+                <label>
+                    Date
+                    <input type="date" id="tx-date" required />
+                </label>
+                <div class="form-actions">
+                    <button type="submit">Save</button>
+                    <button type="button" id="cancel-btn">Cancel</button>
+                </div>
+            </form>
+        </div>
+        <div id="transaction-modal" class="modal hidden">
+            <div class="modal-content">
+                <button id="tx-close-btn" class="close-btn" aria-label="Close">&times;</button>
+                <h3>Transaction Details</h3>
+                <div id="map-container">
+                    <div id="map-preview"></div>
+                </div>
+                <div id="tx-info" class="tx-details"></div>
+                <div class="modal-actions">
+                    <button id="delete-tx-btn" class="delete-btn"><i class="fas fa-trash"></i> Delete Transaction</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reset Confirmation Modal -->
+        <div id="reset-confirm-modal" class="modal hidden">
+            <div class="modal-content">
+                <button id="reset-cancel-close-btn" class="close-btn" aria-label="Close">&times;</button>
+                <h3><i class="fas fa-exclamation-triangle"></i> Reset All Data</h3>
+                <p>Are you sure you want to reset all data? This action cannot be undone and all your transactions and balances will be deleted.</p>
+                <div class="confirmation-actions">
+                    <button id="reset-confirm-btn" class="danger-btn"><i class="fas fa-trash-alt"></i> Yes, Reset Everything</button>
+                    <button id="reset-cancel-btn" class="cancel-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+        <script>
+            // Ensure the transaction modal is hidden on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                document.getElementById('transaction-modal').classList.add('hidden');
+            });
+        </script>
+        <script src="app.js"></script>
+    </body>
+</html>
